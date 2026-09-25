@@ -120,11 +120,26 @@ class MainActivity : ComponentActivity() {
                                                 contentScale = ContentScale.Fit
                                             )
                                         }
-                                        Text(
-                                            text = "Zero Pay Forwarder",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Zero",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = androidx.compose.ui.graphics.Color(0xFF0052FF)
+                                            )
+                                            Text(
+                                                text = "Pay",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = androidx.compose.ui.graphics.Color(0xFF00D2FF)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "Forwarder",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                         Box(
                                             modifier = Modifier
                                                 .size(8.dp)

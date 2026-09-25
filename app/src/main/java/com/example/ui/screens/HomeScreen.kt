@@ -228,17 +228,33 @@ fun HomeScreen(
                         )
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Zero Pay Forwarder",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Zero",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0052FF)
+                            )
+                            Text(
+                                text = "Pay",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00D2FF)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Forwarder",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                         Text(
                             text = "PAYMENTS WITHOUT LIMITS",
                             style = MaterialTheme.typography.labelSmall,
                             letterSpacing = 1.sp,
                             color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

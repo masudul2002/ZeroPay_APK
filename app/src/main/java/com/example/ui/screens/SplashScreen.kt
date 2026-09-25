@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -80,7 +81,7 @@ fun SplashScreen(
                 color = Color.White,
                 shadowElevation = 8.dp,
                 modifier = Modifier
-                    .size(200.dp)
+                    .size(160.dp)
                     .scale(scale.value)
                     .alpha(alpha.value)
             ) {
@@ -89,13 +90,43 @@ fun SplashScreen(
                     contentDescription = "Zero Pay Logo",
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(14.dp)
+                        .padding(16.dp)
                         .testTag("splash_logo"),
                     contentScale = ContentScale.Fit
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.alpha(alpha.value)
+            ) {
+                Text(
+                    text = "Zero",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF0052FF)
+                )
+                Text(
+                    text = "Pay",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF00D2FF)
+                )
+            }
+
+            Text(
+                text = "PAYMENTS WITHOUT LIMITS",
+                style = MaterialTheme.typography.labelMedium,
+                letterSpacing = 2.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.alpha(alpha.value)
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
 
             CircularProgressIndicator(
                 modifier = Modifier
