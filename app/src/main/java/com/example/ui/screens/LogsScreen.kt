@@ -108,7 +108,10 @@ fun LogsScreen(
                 Image(
                     painter = painterResource(id = R.drawable.logo),
                     contentDescription = "Logo",
-                    modifier = Modifier.clip(CircleShape)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Fit
                 )
             }
             Text(

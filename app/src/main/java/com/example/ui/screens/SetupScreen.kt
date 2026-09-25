@@ -129,7 +129,11 @@ fun SetupScreen(
             Image(
                 painter = painterResource(id = R.drawable.logo),
                 contentDescription = "Logo",
-                modifier = Modifier.clip(CircleShape)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(6.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Fit
             )
         }
 

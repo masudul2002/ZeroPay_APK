@@ -88,7 +88,11 @@ fun SplashScreen(
                 Image(
                     painter = painterResource(id = R.drawable.logo),
                     contentDescription = "Logo",
-                    modifier = Modifier.clip(CircleShape)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Fit
                 )
             }
 

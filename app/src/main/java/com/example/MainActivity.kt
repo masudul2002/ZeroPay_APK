@@ -128,7 +128,10 @@ class MainActivity : ComponentActivity() {
                                             Image(
                                                 painter = painterResource(id = R.drawable.logo),
                                                 contentDescription = "Logo",
-                                                modifier = Modifier.clip(CircleShape)
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(CircleShape),
+                                                contentScale = ContentScale.Fit
                                             )
                                         }
                                         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -258,7 +258,11 @@ fun ScannerScreen(
                         Image(
                             painter = painterResource(id = R.drawable.logo),
                             contentDescription = "Logo",
-                            modifier = Modifier.clip(CircleShape)
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(4.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Fit
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
