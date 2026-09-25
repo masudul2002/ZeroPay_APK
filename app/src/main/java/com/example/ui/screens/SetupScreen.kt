@@ -132,7 +132,7 @@ fun SetupScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(6.dp)
-                    .clip(CircleShape),
+                    ,
                 contentScale = ContentScale.Fit
             )
         }
@@ -191,7 +191,7 @@ fun SetupScreen(
                     Box(
                         modifier = Modifier
                             .size(10.dp)
-                            .clip(CircleShape)
+                            
                             .background(Color(0xFF64748B))
                     )
                     Text(

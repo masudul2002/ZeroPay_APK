@@ -110,7 +110,7 @@ fun LogsScreen(
                     contentDescription = "Logo",
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(CircleShape),
+                        ,
                     contentScale = ContentScale.Fit
                 )
             }
@@ -376,7 +376,7 @@ fun StatusIndicatorDot(status: String) {
     Box(
         modifier = Modifier
             .size(10.dp)
-            .clip(CircleShape)
+            
             .background(color)
     )
 }

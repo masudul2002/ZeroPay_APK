@@ -206,7 +206,7 @@ fun ScannerScreen(
                     },
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(CircleShape)
+                        
                         .background(Color.Black.copy(alpha = 0.6f))
                         .testTag("torch_toggle_button")
                 ) {
@@ -261,7 +261,7 @@ fun ScannerScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(4.dp)
-                                .clip(CircleShape),
+                                ,
                             contentScale = ContentScale.Fit
                         )
                     }

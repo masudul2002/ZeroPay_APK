@@ -131,7 +131,7 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(4.dp)
-                                .clip(CircleShape),
+                                ,
                             contentScale = ContentScale.Fit
                         )
                     }

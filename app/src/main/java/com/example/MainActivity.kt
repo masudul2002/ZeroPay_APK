@@ -130,7 +130,7 @@ class MainActivity : ComponentActivity() {
                                                 contentDescription = "Logo",
                                                 modifier = Modifier
                                                     .fillMaxSize()
-                                                    .clip(CircleShape),
+                                                    ,
                                                 contentScale = ContentScale.Fit
                                             )
                                         }
@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity() {
                                         Box(
                                             modifier = Modifier
                                                 .size(8.dp)
-                                                .clip(CircleShape)
+                                                
                                                 .background(if (config.isConfigured) ZeroGreenSuccess else Color(0xFF94A3B8))
                                         )
                                     }

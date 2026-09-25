@@ -77,56 +77,25 @@ fun SplashScreen(
             modifier = Modifier.padding(24.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(28.dp),
                 color = Color.White,
-                shadowElevation = 8.dp,
+                shadowElevation = 6.dp,
                 modifier = Modifier
-                    .size(160.dp)
+                    .size(220.dp)
                     .scale(scale.value)
                     .alpha(alpha.value)
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.logo),
-                    contentDescription = "Logo",
+                    contentDescription = "ZeroPay Logo",
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(12.dp)
-                        .clip(CircleShape),
+                        .padding(8.dp),
                     contentScale = ContentScale.Fit
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.alpha(alpha.value)
-            ) {
-                Text(
-                    text = "Zero",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF0052FF)
-                )
-                Text(
-                    text = "Pay",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF00D2FF)
-                )
-            }
-
-            Text(
-                text = "PAYMENTS WITHOUT LIMITS",
-                style = MaterialTheme.typography.labelMedium,
-                letterSpacing = 2.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.alpha(alpha.value)
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             CircularProgressIndicator(
                 modifier = Modifier
