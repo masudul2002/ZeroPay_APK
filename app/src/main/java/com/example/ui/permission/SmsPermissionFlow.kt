@@ -151,8 +151,7 @@ class SmsPermissionState(
 
     fun openAppSettings() {
         showSettingsDialog = false
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.fromParts("package", context.packageName, null)
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
@@ -379,52 +378,18 @@ fun SmsPermissionSettingsDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("sms_permission_settings_dialog"),
         title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Permission Required",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Text(
+                text = "Action Required",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "SMS permissions were previously declined. Android requires you to enable SMS access manually from App Settings for forwarding to work.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Card(
-                    shape = RoundedCornerShape(8.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "Steps to enable:",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "1. Tap 'Open Settings' below\n2. Select 'Permissions'\n3. Set 'SMS' to 'Allow'",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+            Text(
+                text = "Because this app was installed outside the Play Store, Android restricts SMS access. To fix this:\n1. Click 'Go to Settings'.\n2. Tap the 3 dots (top right) and select 'Allow restricted settings'.\n3. Go to Permissions and allow SMS.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         },
         confirmButton = {
             Button(
@@ -432,11 +397,14 @@ fun SmsPermissionSettingsDialog(
                 modifier = Modifier.testTag("dialog_open_settings_button"),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Text("Open Settings")
+                Text("Go to Settings")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("dialog_cancel_settings_button")
+            ) {
                 Text("Cancel")
             }
         }

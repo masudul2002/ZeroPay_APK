@@ -127,11 +127,8 @@ fun SettingsScreen(
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.logo),
-                            contentDescription = "Zero Pay Logo",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(4.dp),
-                            contentScale = ContentScale.Fit
+                            contentDescription = "Logo",
+                            modifier = Modifier.clip(CircleShape)
                         )
                     }
                     Column {

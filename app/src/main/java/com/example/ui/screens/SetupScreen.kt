@@ -128,12 +128,8 @@ fun SetupScreen(
         ) {
             Image(
                 painter = painterResource(id = R.drawable.logo),
-                contentDescription = "ZeroPay Logo",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Fit
+                contentDescription = "Logo",
+                modifier = Modifier.clip(CircleShape)
             )
         }
 

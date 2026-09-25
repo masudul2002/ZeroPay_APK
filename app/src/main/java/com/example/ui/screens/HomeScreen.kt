@@ -259,8 +259,12 @@ fun HomeScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    permissionState.requestPermissions { perms ->
-                                        permissionLauncher.launch(perms)
+                                    if (permissionState.isPermanentlyDenied()) {
+                                        permissionState.showSettingsDialog = true
+                                    } else {
+                                        permissionState.requestPermissions { perms ->
+                                            permissionLauncher.launch(perms)
+                                        }
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEA580C)),
@@ -268,7 +272,7 @@ fun HomeScreen(
                                 modifier = Modifier.testTag("enable_sms_permission_button")
                             ) {
                                 Text(
-                                    text = if (permissionState.isPermanentlyDenied()) "Open Settings" else "Review & Enable",
+                                    text = "Grant SMS Permissions",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
