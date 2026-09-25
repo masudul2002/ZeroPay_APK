@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/masudul2002/ZeroPay-APK/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/Release-v1.0.0-0284c7.svg?style=for-the-badge&logo=android" alt="Release v1.0.0"></a>
-  <a href="https://github.com/masudul2002/ZeroPay-APK/releases/download/v1.0.0/ZeroPay-SMS-Forwarder-v1.0.0.apk"><img src="https://img.shields.io/badge/Download-APK%20(26MB)-22c55e.svg?style=for-the-badge&logo=googleplay" alt="Download APK"></a>
+  <a href="https://github.com/masudul2002/ZeroPay-APK/releases"><img src="https://img.shields.io/badge/Release-v1.0.0-0284c7.svg?style=for-the-badge&logo=android" alt="Release v1.0.0"></a>
+  <a href="https://github.com/masudul2002/ZeroPay-APK/raw/main/release/ZeroPay-SMS-Forwarder-v1.0.0.apk"><img src="https://img.shields.io/badge/Download-APK%20(26MB)-22c55e.svg?style=for-the-badge&logo=googleplay" alt="Download APK"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License: MIT"></a>
   <a href="https://github.com/masudul2002"><img src="https://img.shields.io/badge/Author-Masudul%20Hasan-orange.svg?style=for-the-badge&logo=github" alt="Author"></a>
 </p>
@@ -22,9 +22,9 @@
 
 Download the latest production-ready Android APK directly:
 
-- **Direct APK Download**: [ZeroPay-SMS-Forwarder-v1.0.0.apk](https://github.com/masudul2002/ZeroPay-APK/releases/download/v1.0.0/ZeroPay-SMS-Forwarder-v1.0.0.apk)
-- **GitHub Release Page**: [v1.0.0 Release Notes](https://github.com/masudul2002/ZeroPay-APK/releases/tag/v1.0.0)
-- **Repository Binary Path**: `release/ZeroPay-SMS-Forwarder-v1.0.0.apk`
+- **⚡ Direct APK Download (Raw CDN)**: [Download ZeroPay-SMS-Forwarder-v1.0.0.apk](https://github.com/masudul2002/ZeroPay-APK/raw/main/release/ZeroPay-SMS-Forwarder-v1.0.0.apk)
+- **📦 Repository File**: [release/ZeroPay-SMS-Forwarder-v1.0.0.apk](https://github.com/masudul2002/ZeroPay-APK/blob/main/release/ZeroPay-SMS-Forwarder-v1.0.0.apk)
+- **🏷️ GitHub Releases**: [ZeroPay Releases Page](https://github.com/masudul2002/ZeroPay-APK/releases)
 
 ---
 

@@ -47,6 +47,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isTesting = MutableStateFlow(false)
     val isTesting: StateFlow<Boolean> = _isTesting.asStateFlow()
 
+    private val _lastError = MutableStateFlow<String?>(null)
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
+    fun clearLastError() {
+        _lastError.value = null
+    }
+
     fun onQrScanned(rawJson: String): Result<ConfigData> {
         val result = repository.parseAndSaveQrJson(rawJson)
         if (result.isSuccess) {
@@ -94,13 +101,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 when (val result = repository.testConnection()) {
                     is DispatchResult.Success -> {
                         _testStatus.value = "Webhook verified successfully! (HTTP ${result.code})"
+                        _lastError.value = null
                     }
                     is DispatchResult.Failure -> {
-                        _testStatus.value = "Connection failed: ${result.errorMessage}"
+                        val errMsg = "Webhook failed: ${result.errorMessage ?: "Unknown error"}${result.code?.let { " (HTTP $it)" } ?: ""}"
+                        _testStatus.value = errMsg
+                        _lastError.value = errMsg
                     }
                 }
             } catch (e: Exception) {
-                _testStatus.value = "Error testing connection: ${e.message}"
+                val errMsg = "Error testing connection: ${e.message}"
+                _testStatus.value = errMsg
+                _lastError.value = errMsg
             } finally {
                 _isTesting.value = false
             }

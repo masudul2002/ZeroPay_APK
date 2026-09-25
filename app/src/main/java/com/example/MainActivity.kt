@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier
                                                 .size(8.dp)
                                                 .clip(CircleShape)
-                                                .background(if (config.isConfigured) ZeroGreenSuccess else ZeroRedError)
+                                                .background(if (config.isConfigured) ZeroGreenSuccess else androidx.compose.ui.graphics.Color(0xFF94A3B8))
                                         )
                                     }
                                 },

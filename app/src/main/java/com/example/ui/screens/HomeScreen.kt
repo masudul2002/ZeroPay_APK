@@ -118,6 +118,7 @@ fun HomeScreen(
     val failedCount by viewModel.failedCount.collectAsState()
     val testStatus by viewModel.testStatus.collectAsState()
     val isTesting by viewModel.isTesting.collectAsState()
+    val lastError by viewModel.lastError.collectAsState()
 
     var showAddSenderDialog by remember { mutableStateOf(false) }
     var showSimulateSmsDialog by remember { mutableStateOf(false) }
@@ -263,7 +264,58 @@ fun HomeScreen(
             }
         }
 
-        // 1. Connection Status Banner
+        // 0. Red Error Alert Card (Only shown when an actual error occurs)
+        if (lastError != null) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("error_alert_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Webhook Delivery / Connection Error",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = lastError ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        IconButton(onClick = { viewModel.clearLastError() }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 1. Connection Status Banner (Normal, calm neutral card when waiting for setup)
         item {
             Card(
                 modifier = Modifier
@@ -274,7 +326,7 @@ fun HomeScreen(
                     containerColor = if (config.isConfigured) {
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
                     } else {
-                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                     }
                 )
             ) {
@@ -296,13 +348,16 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .size(12.dp)
                                     .clip(CircleShape)
-                                    .background(if (config.isConfigured) ZeroGreenSuccess else ZeroRedError)
+                                    .background(
+                                        if (config.isConfigured) ZeroGreenSuccess 
+                                        else androidx.compose.ui.graphics.Color(0xFF0052FF)
+                                    )
                             )
                             Text(
-                                text = if (config.isConfigured) "CONNECTED" else "NOT CONFIGURED",
+                                text = if (config.isConfigured) "CONNECTED" else "READY TO CONNECT",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = if (config.isConfigured) ZeroGreenSuccess else ZeroRedError
+                                color = if (config.isConfigured) ZeroGreenSuccess else MaterialTheme.colorScheme.primary
                             )
                         }
 
