@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -42,6 +44,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -91,6 +94,8 @@ fun SetupScreen(
     var isSecretVisible by remember { mutableStateOf(false) }
     var isManualExpanded by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
+    var showPasteJsonDialog by remember { mutableStateOf(false) }
+    var pasteJsonInput by remember { mutableStateOf("") }
 
     val permissionState = rememberSmsPermissionState()
     val launcher = rememberLauncherForActivityResult(
@@ -316,6 +321,26 @@ fun SetupScreen(
                         fontWeight = FontWeight.Bold
                     )
                 }
+
+                OutlinedButton(
+                    onClick = { showPasteJsonDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("setup_paste_json_button"),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentPaste,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Paste Pairing JSON",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             }
         }
 
@@ -377,8 +402,22 @@ fun SetupScreen(
 
                         OutlinedTextField(
                             value = manualWebhookUrl,
-                            onValueChange = {
-                                manualWebhookUrl = it
+                            onValueChange = { input ->
+                                if (input.contains("{") && (input.contains("webhook") || input.contains("device"))) {
+                                    val result = viewModel.onQrScanned(input)
+                                    if (result.isSuccess) {
+                                        val parsed = result.getOrNull()
+                                        if (parsed != null) {
+                                            manualWebhookUrl = parsed.webhookUrl
+                                            manualDeviceSecret = parsed.deviceToken
+                                            manualDeviceId = parsed.deviceId
+                                            validationError = null
+                                            onSetupComplete()
+                                            return@OutlinedTextField
+                                        }
+                                    }
+                                }
+                                manualWebhookUrl = input
                                 validationError = null
                             },
                             label = { Text("Webhook URL") },
@@ -555,6 +594,75 @@ fun SetupScreen(
             },
             onDismiss = {
                 permissionState.showSettingsDialog = false
+            }
+        )
+    }
+
+    if (showPasteJsonDialog) {
+        var localError by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = {
+                showPasteJsonDialog = false
+                localError = null
+            },
+            title = { Text("Paste Setup JSON") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Paste the pairing JSON string from your Zero Pay dashboard:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedTextField(
+                        value = pasteJsonInput,
+                        onValueChange = {
+                            pasteJsonInput = it
+                            localError = null
+                        },
+                        placeholder = {
+                            Text(
+                                "{\"webhookUrl\":\"https://...\",\"deviceId\":\"...\",\"deviceToken\":\"...\"}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        maxLines = 6,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("paste_pairing_json_input")
+                    )
+                    if (localError != null) {
+                        Text(
+                            text = localError ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val result = viewModel.onQrScanned(pasteJsonInput)
+                        if (result.isSuccess) {
+                            showPasteJsonDialog = false
+                            onSetupComplete()
+                        } else {
+                            localError = result.exceptionOrNull()?.message ?: "Invalid JSON format"
+                        }
+                    },
+                    modifier = Modifier.testTag("submit_paste_json_button")
+                ) {
+                    Text("Save & Connect")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPasteJsonDialog = false
+                        localError = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
             }
         )
     }

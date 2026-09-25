@@ -102,16 +102,57 @@ class WebhookDispatcher(
         }
     }
 
-    suspend fun testConnection(config: ConfigData): DispatchResult {
+    suspend fun testConnection(config: ConfigData): DispatchResult = withContext(Dispatchers.IO) {
         if (config.deviceToken.isBlank()) {
-            return DispatchResult.Failure(code = null, errorMessage = "Failed: Not Paired")
+            return@withContext DispatchResult.Failure(code = null, errorMessage = "Failed: Not Paired")
         }
-        return dispatchSms(
-            config = config,
-            sender = "TEST_PING",
-            messageBody = "Zero Pay test ping message to verify webhook connectivity.",
-            simSlot = "SIM_1"
-        )
+
+        if (config.webhookUrl.isBlank()) {
+            return@withContext DispatchResult.Failure(code = null, errorMessage = "Missing webhook URL")
+        }
+
+        try {
+            // Pairing sync "PING" request
+            val jsonObject = JSONObject().apply {
+                put("action", "PING")
+                put("deviceId", config.deviceId)
+                put("deviceToken", config.deviceToken)
+                put("timestamp", getCurrentIsoTimestamp())
+            }
+
+            val jsonString = jsonObject.toString()
+            Log.d(TAG, "Sending PING to ${config.webhookUrl}: $jsonString")
+
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val requestBody = jsonString.toRequestBody(mediaType)
+
+            val request = Request.Builder()
+                .url(config.webhookUrl)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer ${config.deviceToken}")
+                .post(requestBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseBody = response.body?.string().orEmpty()
+                val code = response.code
+
+                if (response.isSuccessful) {
+                    Log.d(TAG, "PING dispatched successfully! Code: $code, Body: $responseBody")
+                    DispatchResult.Success(code = code, body = responseBody)
+                } else {
+                    val errorMsg = "HTTP $code: ${response.message.ifBlank { responseBody.take(120) }}"
+                    Log.w(TAG, "PING response failed: $errorMsg")
+                    DispatchResult.Failure(code = code, errorMessage = errorMsg)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send PING: ${e.message}", e)
+            DispatchResult.Failure(
+                code = null,
+                errorMessage = e.localizedMessage ?: "Network connection error"
+            )
+        }
     }
 
     companion object {

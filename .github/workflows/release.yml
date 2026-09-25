@@ -2,11 +2,8 @@ name: Android Build & Release
 
 on:
   push:
-    branches: [ "main" ]
     tags:
-      - "v*"
-  pull_request:
-    branches: [ "main" ]
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -26,8 +23,8 @@ jobs:
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        java-version: "17"
-        distribution: "temurin"
+        java-version: '17'
+        distribution: 'temurin'
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
@@ -68,10 +65,11 @@ jobs:
           APK_FOUND=$(find . -name "*.apk" -not -path "*/intermediates/*" | head -n 1)
         fi
         
+        TAG_NAME="${GITHUB_REF_NAME:-v1.0.2}"
         if [ -n "$APK_FOUND" ]; then
-          echo "Copying $APK_FOUND to release/ZeroPay-v1.0.0.apk"
-          cp "$APK_FOUND" release/ZeroPay-v1.0.0.apk
-          cp "$APK_FOUND" release/ZeroPay-SMS-Forwarder-v1.0.0.apk
+          echo "Copying $APK_FOUND to release/ZeroPay-${TAG_NAME}.apk"
+          cp "$APK_FOUND" "release/ZeroPay-${TAG_NAME}.apk"
+          cp "$APK_FOUND" "release/ZeroPay-SMS-Forwarder-${TAG_NAME}.apk"
           ls -lh release/
         else
           echo "ERROR: No generated APK found!"
@@ -81,31 +79,29 @@ jobs:
     - name: Upload Build Artifact to GitHub Actions
       uses: actions/upload-artifact@v4
       with:
-        name: ZeroPay-v1.0.0
-        path: release/ZeroPay-v1.0.0.apk
+        name: ZeroPay-${{ github.ref_name }}
+        path: release/*.apk
         if-no-files-found: error
 
     - name: Publish GitHub Release
-      if: github.event_name != 'pull_request'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v1.0.0
-        name: "ZeroPay v1.0.0"
+        tag_name: ${{ github.ref_name }}
+        name: "ZeroPay ${{ github.ref_name }}"
         files: |
-          release/ZeroPay-v1.0.0.apk
-          release/ZeroPay-SMS-Forwarder-v1.0.0.apk
+          release/*.apk
         body: |
-          ### 🚀 ZeroPay SMS Forwarder v1.0.0
+          ### 🚀 ZeroPay SMS Forwarder ${{ github.ref_name }}
           Enterprise-grade automated MFS SMS ingestion & real-time webhook client for the ZeroPay gateway ecosystem.
 
           #### 📥 Direct Download Link:
-          - **[Download ZeroPay-v1.0.0.apk](https://github.com/masudul2002/ZeroPay_APK/releases/download/v1.0.0/ZeroPay-v1.0.0.apk)**
+          - **[Download ZeroPay APK](https://github.com/masudul2002/ZeroPay_APK/releases/download/${{ github.ref_name }}/ZeroPay-${{ github.ref_name }}.apk)**
 
           #### ⚡ Features & Updates:
-          - High priority Telephony SMS BroadcastReceiver
-          - Android 13+ Restricted Settings guidance dialog
-          - Persistent Foreground Service keep-alive
-          - Direct webhook integration for bKash, Nagad, and Rocket
+          - **QR Auto-Connect & Pairing Sync Ping:** Fully compatible with Next.js web dashboard (`POST /api/v1/webhook`).
+          - **Smart Transaction Filtering:** Automatically filters real financial transactions from bKash, Nagad, Rocket, BRACBANK, etc., dropping OTPs and promotional spam.
+          - **4-Tab Navigation & Manual Setup:** Complete Home, SMS Log, Filters, and Settings tabs with paste JSON support.
+          - **Native Jetpack Compose Data Flow Pipeline:** Circuit and electric particle animation while syncing.
         draft: false
         prerelease: false
       env:

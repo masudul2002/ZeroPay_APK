@@ -2,6 +2,8 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -118,11 +120,13 @@ fun ScannerScreen(
 
     val qrAnalyzer = remember {
         QrCodeAnalyzer { rawScannedText ->
-            val result = viewModel.onQrScanned(rawScannedText)
-            if (result.isSuccess) {
-                onScanSuccess()
-            } else {
-                scanErrorMessage = result.exceptionOrNull()?.message ?: "Invalid QR code format"
+            Handler(Looper.getMainLooper()).post {
+                val result = viewModel.onQrScanned(rawScannedText)
+                if (result.isSuccess) {
+                    onScanSuccess()
+                } else {
+                    scanErrorMessage = result.exceptionOrNull()?.message ?: "Invalid QR code format"
+                }
             }
         }
     }

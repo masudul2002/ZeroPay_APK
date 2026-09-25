@@ -74,30 +74,70 @@ class SecurePreferencesManager(private val context: Context) {
 
     fun parseAndSaveQrJson(qrJsonString: String): Result<ConfigData> {
         return try {
-            val json = JSONObject(qrJsonString.trim())
-            val webhookUrl = json.optString("webhookUrl", "").trim()
-            val deviceToken = (if (json.has("deviceToken") && json.optString("deviceToken").isNotBlank()) {
-                json.optString("deviceToken")
+            var raw = qrJsonString.trim()
+
+            // Remove markdown code block fences if present (e.g. ```json ... ```)
+            if (raw.startsWith("```")) {
+                val lines = raw.lines()
+                raw = lines.filterNot { it.trim().startsWith("```") }.joinToString("\n").trim()
+            }
+
+            // Extract the outermost JSON object between '{' and '}'
+            val firstBrace = raw.indexOf('{')
+            val lastBrace = raw.lastIndexOf('}')
+            val jsonCandidate = if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+                raw.substring(firstBrace, lastBrace + 1).trim()
             } else {
-                json.optString("deviceSecret", "")
-            }).trim()
-            val deviceId = json.optString("deviceId", "").trim()
+                raw
+            }
+
+            // Parse with JSONObject, falling back to unescaped string if needed
+            val json = try {
+                JSONObject(jsonCandidate)
+            } catch (e: Exception) {
+                val unescaped = jsonCandidate.replace("\\\"", "\"").replace("\\\\", "\\")
+                JSONObject(unescaped)
+            }
+
+            // Extract webhookUrl with fallbacks
+            var webhookUrl = json.optString("webhookUrl", "")
+            if (webhookUrl.isBlank()) webhookUrl = json.optString("webhook_url", "")
+            if (webhookUrl.isBlank()) webhookUrl = json.optString("url", "")
+            if (webhookUrl.isBlank()) webhookUrl = json.optString("endpoint", "")
+            webhookUrl = webhookUrl.trim()
+
+            // Extract deviceToken / deviceSecret with fallbacks
+            var deviceToken = json.optString("deviceToken", "")
+            if (deviceToken.isBlank()) deviceToken = json.optString("device_token", "")
+            if (deviceToken.isBlank()) deviceToken = json.optString("deviceSecret", "")
+            if (deviceToken.isBlank()) deviceToken = json.optString("device_secret", "")
+            if (deviceToken.isBlank()) deviceToken = json.optString("token", "")
+            if (deviceToken.isBlank()) deviceToken = json.optString("secret", "")
+            if (deviceToken.isBlank()) deviceToken = json.optString("apiKey", "")
+            if (deviceToken.isBlank()) deviceToken = json.optString("api_key", "")
+            deviceToken = deviceToken.trim()
+
+            // Extract deviceId with fallbacks
+            var deviceId = json.optString("deviceId", "")
+            if (deviceId.isBlank()) deviceId = json.optString("device_id", "")
+            if (deviceId.isBlank()) deviceId = json.optString("id", "")
+            deviceId = deviceId.trim()
+            if (deviceId.isBlank()) {
+                deviceId = "sim-gateway-01"
+            }
 
             if (webhookUrl.isBlank()) {
-                return Result.failure(IllegalArgumentException("Missing or empty 'webhookUrl' in QR code"))
+                return Result.failure(IllegalArgumentException("Missing or empty 'webhookUrl' in configuration"))
             }
             if (deviceToken.isBlank()) {
-                return Result.failure(IllegalArgumentException("Missing or empty 'deviceToken' in QR code"))
-            }
-            if (deviceId.isBlank()) {
-                return Result.failure(IllegalArgumentException("Missing or empty 'deviceId' in QR code"))
+                return Result.failure(IllegalArgumentException("Missing or empty 'deviceToken' in configuration"))
             }
 
             saveConfig(webhookUrl, deviceToken, deviceId)
             Result.success(ConfigData(webhookUrl, deviceToken, deviceId))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse QR JSON: ${e.message}", e)
-            Result.failure(e)
+            Result.failure(IllegalArgumentException("Invalid JSON format: ${e.localizedMessage ?: "Unable to parse credentials"}"))
         }
     }
 
