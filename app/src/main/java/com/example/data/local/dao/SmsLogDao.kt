@@ -1,0 +1,33 @@
+package com.example.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.example.data.local.entity.SmsLogEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface SmsLogDao {
+
+    @Query("SELECT * FROM sms_logs ORDER BY createdAtMillis DESC")
+    fun getAllLogs(): Flow<List<SmsLogEntity>>
+
+    @Query("SELECT * FROM sms_logs ORDER BY createdAtMillis DESC LIMIT :limit")
+    fun getRecentLogs(limit: Int = 50): Flow<List<SmsLogEntity>>
+
+    @Query("SELECT COUNT(*) FROM sms_logs WHERE status = 'SUCCESS'")
+    fun getSuccessCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM sms_logs WHERE status = 'FAILED'")
+    fun getFailedCount(): Flow<Int>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLog(log: SmsLogEntity): Long
+
+    @Query("DELETE FROM sms_logs WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM sms_logs")
+    suspend fun clearAll()
+}

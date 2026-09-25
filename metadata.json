@@ -1,0 +1,6 @@
+{
+  "name": "Zero Pay",
+  "description": "Zero Pay SMS Forwarder - Background SMS listener and webhook dispatcher for payment automation",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
