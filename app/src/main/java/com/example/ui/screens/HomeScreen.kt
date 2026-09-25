@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,38 +33,38 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import com.example.ui.permission.SmsPermissionRationaleDialog
-import com.example.ui.permission.SmsPermissionSettingsDialog
-import com.example.ui.permission.rememberSmsPermissionState
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,11 +77,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import com.example.data.local.entity.SmsLogEntity
 import com.example.ui.MainViewModel
+import com.example.ui.permission.SmsPermissionRationaleDialog
+import com.example.ui.permission.SmsPermissionSettingsDialog
+import com.example.ui.permission.rememberSmsPermissionState
 import com.example.ui.theme.ZeroGreenSuccess
 import com.example.ui.theme.ZeroRedError
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -95,9 +99,10 @@ fun HomeScreen(
     val successCount by viewModel.successCount.collectAsState()
     val failedCount by viewModel.failedCount.collectAsState()
     val lastError by viewModel.lastError.collectAsState()
+    val testStatus by viewModel.testStatus.collectAsState()
+    val isTesting by viewModel.isTesting.collectAsState()
 
-    var searchQuery by remember { mutableStateOf("") }
-
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
 
     lateinit var permissionLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
@@ -126,27 +131,153 @@ fun HomeScreen(
     }
     permissionLauncher = launcher
 
-    // Filter recent logs by TrxID or general search query, restricted to max 3 items
-    val recentThreeLogs = remember(logs, searchQuery) {
-        val filtered = if (searchQuery.isBlank()) {
-            logs
-        } else {
-            val q = searchQuery.trim().lowercase()
-            logs.filter {
-                it.messageBody.lowercase().contains(q) ||
-                it.sender.lowercase().contains(q)
-            }
+    LaunchedEffect(testStatus) {
+        testStatus?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearTestStatus()
         }
-        filtered.take(3)
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    // Filter recent SMS logs by tab: All, Pending, Synced, Failed
+    val pendingLogs = remember(logs) {
+        logs.filter { it.status == "PENDING" || it.status == "PAUSED" }
+    }
+
+    val syncedLogs = remember(logs) {
+        logs.filter { it.status == "SUCCESS" || it.status == "SYNCED" }
+    }
+
+    val failureLogs = remember(logs) {
+        logs.filter {
+            it.status.contains("FAIL", ignoreCase = true) ||
+            it.status == "Failed: Not Paired" ||
+            (it.httpCode != null && it.httpCode !in 200..299)
+        }
+    }
+
+    val currentTabLogs = remember(selectedTabIndex, logs, pendingLogs, syncedLogs, failureLogs) {
+        when (selectedTabIndex) {
+            1 -> pendingLogs
+            2 -> syncedLogs
+            3 -> failureLogs
+            else -> logs
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .testTag("home_screen"),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+        // 1. Connection Status Badge & Sync Button Row
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("connection_header_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Connection Status Badge
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (config.isConfigured) ZeroGreenSuccess.copy(alpha = 0.15f) else Color(0xFFEA580C).copy(alpha = 0.15f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (config.isConfigured) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = if (config.isConfigured) ZeroGreenSuccess else Color(0xFFEA580C),
+                                modifier = Modifier.padding(8.dp).fillMaxSize()
+                            )
+                        }
+
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (config.isConfigured) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(if (config.isConfigured) ZeroGreenSuccess else Color(0xFFD97706))
+                                        )
+                                        Text(
+                                            text = if (config.isConfigured) "Connected" else "Not Paired",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (config.isConfigured) Color(0xFF15803D) else Color(0xFFB45309),
+                                            modifier = Modifier.testTag("connection_status_badge")
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = if (config.isConfigured) "Device: ${config.deviceId}" else "Scan QR from dashboard to pair",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // "Sync" Button
+                    Button(
+                        onClick = { viewModel.syncNow() },
+                        enabled = !isTesting,
+                        modifier = Modifier.testTag("sync_button"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Syncing...", fontSize = 13.sp)
+                        } else {
+                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sync", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
         // Red alert card: shown ONLY when there is an actual system error or webhook error
         if (lastError != null) {
             item {
@@ -160,20 +291,20 @@ fun HomeScreen(
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Warning,
                                 contentDescription = "Error",
                                 tint = MaterialTheme.colorScheme.onError,
-                                modifier = Modifier.padding(8.dp).fillMaxSize()
+                                modifier = Modifier.padding(7.dp).fillMaxSize()
                             )
                         }
                         Column(modifier = Modifier.weight(1f)) {
@@ -205,7 +336,7 @@ fun HomeScreen(
             }
         }
 
-        // Permission Missing Warning (if SMS permission is not granted)
+        // Permission Missing Warning
         if (!permissionState.hasSmsPermission) {
             item {
                 Card(
@@ -219,7 +350,7 @@ fun HomeScreen(
                     border = BorderStroke(1.dp, Color(0xFFFED7AA))
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
@@ -229,13 +360,13 @@ fun HomeScreen(
                             Surface(
                                 shape = CircleShape,
                                 color = Color(0xFFEA580C).copy(alpha = 0.15f),
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Security,
                                     contentDescription = null,
                                     tint = Color(0xFFEA580C),
-                                    modifier = Modifier.padding(8.dp).fillMaxSize()
+                                    modifier = Modifier.padding(7.dp).fillMaxSize()
                                 )
                             }
                             Column(modifier = Modifier.weight(1f)) {
@@ -246,7 +377,7 @@ fun HomeScreen(
                                     color = Color(0xFF9A3412)
                                 )
                                 Text(
-                                    text = "Monitoring is paused. ZeroPay requires SMS access to detect and forward incoming transaction alerts.",
+                                    text = "ZeroPay requires SMS access to detect and forward incoming transaction alerts.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color(0xFFC2410C)
                                 )
@@ -283,13 +414,13 @@ fun HomeScreen(
             }
         }
 
-        // 1. Service Status Toggle (Top component)
+        // Service Status Toggle
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("service_status_toggle_card"),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = if (isMonitoringActive) {
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
@@ -297,90 +428,61 @@ fun HomeScreen(
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                     }
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isMonitoringActive) ZeroGreenSuccess.copy(alpha = 0.15f) else Color(0xFF64748B).copy(alpha = 0.15f),
+                            modifier = Modifier.size(38.dp)
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isMonitoringActive) ZeroGreenSuccess.copy(alpha = 0.15f) else Color(0xFF64748B).copy(alpha = 0.15f),
-                                modifier = Modifier.size(46.dp)
+                            Icon(
+                                imageVector = if (isMonitoringActive) Icons.Default.PlayCircle else Icons.Default.PauseCircle,
+                                contentDescription = null,
+                                tint = if (isMonitoringActive) ZeroGreenSuccess else Color(0xFF64748B),
+                                modifier = Modifier.padding(7.dp).fillMaxSize()
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "SMS Monitoring Service",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    imageVector = if (isMonitoringActive) Icons.Default.PlayCircle else Icons.Default.PauseCircle,
-                                    contentDescription = null,
-                                    tint = if (isMonitoringActive) ZeroGreenSuccess else Color(0xFF64748B),
-                                    modifier = Modifier.padding(8.dp).fillMaxSize()
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isMonitoringActive) ZeroGreenSuccess else Color(0xFF94A3B8))
                                 )
-                            }
-                            Column {
                                 Text(
-                                    text = "SMS Monitoring Service",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = if (isMonitoringActive) "ACTIVE (LISTENING)" else "STOPPED",
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = if (isMonitoringActive) ZeroGreenSuccess else Color(0xFF64748B)
                                 )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isMonitoringActive) ZeroGreenSuccess else Color(0xFF94A3B8))
-                                    )
-                                    Text(
-                                        text = if (isMonitoringActive) "ACTIVE (LISTENING)" else "MONITORING STOPPED",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isMonitoringActive) ZeroGreenSuccess else Color(0xFF64748B)
-                                    )
-                                }
                             }
                         }
-
-                        // Prominent Switch
-                        Switch(
-                            checked = isMonitoringActive,
-                            onCheckedChange = { active ->
-                                if (active) {
-                                    if (!permissionState.hasSmsPermission) {
-                                        permissionState.requestPermissions { perms ->
-                                            permissionLauncher.launch(perms)
-                                        }
-                                    } else {
-                                        viewModel.setForwardingActive(true)
-                                    }
-                                } else {
-                                    viewModel.setForwardingActive(false)
-                                }
-                            },
-                            modifier = Modifier.testTag("service_status_switch"),
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = ZeroGreenSuccess
-                            )
-                        )
                     }
 
-                    // Prominent action button toggle
-                    Button(
-                        onClick = {
-                            if (!isMonitoringActive) {
+                    Switch(
+                        checked = isMonitoringActive,
+                        onCheckedChange = { active ->
+                            if (active) {
                                 if (!permissionState.hasSmsPermission) {
                                     permissionState.requestPermissions { perms ->
                                         permissionLauncher.launch(perms)
@@ -392,34 +494,17 @@ fun HomeScreen(
                                 viewModel.setForwardingActive(false)
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("toggle_monitoring_button"),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isMonitoringActive) MaterialTheme.colorScheme.error.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary
+                        modifier = Modifier.testTag("service_status_switch"),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = ZeroGreenSuccess
                         )
-                    ) {
-                        Icon(
-                            imageVector = if (isMonitoringActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isMonitoringActive) "Stop Monitoring" else "Start Monitoring",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    )
                 }
             }
         }
 
-        // 2. Statistics Cards: 3 summary boxes
-        // 1. SMS Received (Total count)
-        // 2. SMS Forwarded (Total count)
-        // 3. Errors (Total count of failed webhook dispatches)
+        // Statistics Cards Row: SMS Received, SMS Forwarded, Errors
         item {
             Row(
                 modifier = Modifier
@@ -427,27 +512,24 @@ fun HomeScreen(
                     .testTag("statistics_cards_row"),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Box 1: SMS Received
                 StatSummaryCard(
                     modifier = Modifier.weight(1f),
-                    title = "SMS Received",
+                    title = "Received",
                     value = logs.size.toString(),
                     icon = Icons.Default.Sms,
                     accentColor = Color(0xFF0052FF),
                     backgroundColor = Color(0xFFEFF6FF)
                 )
 
-                // Box 2: SMS Forwarded
                 StatSummaryCard(
                     modifier = Modifier.weight(1f),
-                    title = "SMS Forwarded",
+                    title = "Forwarded",
                     value = successCount.toString(),
                     icon = Icons.Default.MarkEmailRead,
                     accentColor = ZeroGreenSuccess,
                     backgroundColor = Color(0xFFF0FDF4)
                 )
 
-                // Box 3: Errors
                 StatSummaryCard(
                     modifier = Modifier.weight(1f),
                     title = "Errors",
@@ -459,76 +541,116 @@ fun HomeScreen(
             }
         }
 
-        // 3. Search Bar: "Search by TrxID"
+        // 2. TabRow: All, Pending, Synced, Failed
         item {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("search_trxid_input"),
-                label = { Text("Search by TrxID") },
-                placeholder = { Text("e.g. BL049281, TrxID, or sender...") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp)
-            )
-        }
-
-        // 4. Recent Activity: "Last Received SMS" (Restricted to only 3 most recent SMS items)
-        item {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Last Received SMS",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                TextButton(
-                    onClick = onNavigateToLogs,
-                    modifier = Modifier.testTag("view_all_logs_button")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "View All (${logs.size})",
-                        style = MaterialTheme.typography.labelMedium,
+                        text = "Recent SMS Activity",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onBackground
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp)
+                    TextButton(
+                        onClick = onNavigateToLogs,
+                        modifier = Modifier.testTag("view_all_logs_button")
+                    ) {
+                        Text(
+                            text = "Full History",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                TabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .testTag("home_filter_tab_row"),
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    val tabs = listOf(
+                        "All" to logs.size,
+                        "Pending" to pendingLogs.size,
+                        "Synced" to syncedLogs.size,
+                        "Failed" to failureLogs.size
                     )
+
+                    tabs.forEachIndexed { index, (label, count) ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            modifier = Modifier.testTag("tab_${label.lowercase()}"),
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (selectedTabIndex == index) {
+                                            when (index) {
+                                                2 -> ZeroGreenSuccess.copy(alpha = 0.2f)
+                                                3 -> ZeroRedError.copy(alpha = 0.2f)
+                                                else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                            }
+                                        } else {
+                                            MaterialTheme.colorScheme.surfaceVariant
+                                        }
+                                    ) {
+                                        Text(
+                                            text = "$count",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp,
+                                            color = if (selectedTabIndex == index) {
+                                                when (index) {
+                                                    2 -> ZeroGreenSuccess
+                                                    3 -> ZeroRedError
+                                                    else -> MaterialTheme.colorScheme.primary
+                                                }
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
 
-        if (recentThreeLogs.isEmpty()) {
+        // 3. LazyColumn of Recent SMS Cards matching TabRow
+        if (currentTabLogs.isEmpty()) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("empty_tab_card"),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(
@@ -545,13 +667,18 @@ fun HomeScreen(
                             modifier = Modifier.size(36.dp)
                         )
                         Text(
-                            text = if (searchQuery.isBlank()) "No SMS received yet" else "No SMS matched '$searchQuery'",
+                            text = when (selectedTabIndex) {
+                                1 -> "No pending SMS logs"
+                                2 -> "No synced SMS yet"
+                                3 -> "No failed SMS logs"
+                                else -> "No SMS received yet"
+                            },
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (searchQuery.isBlank()) "Ensure monitoring is active and SMS permissions are granted." else "Try another TrxID or clear search.",
+                            text = if (config.isConfigured) "Incoming SMS matching this tab will be displayed here." else "Pair your device using the setup QR code to begin forwarding.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -559,13 +686,22 @@ fun HomeScreen(
                 }
             }
         } else {
-            items(recentThreeLogs, key = { it.id }) { log ->
+            items(currentTabLogs.take(15), key = { it.id }) { log ->
                 RecentSmsItemCard(log = log)
             }
         }
+
+        item { Spacer(modifier = Modifier.height(10.dp)) }
     }
 
-    // Prominent educational rationale dialog before system prompt
+    if (isTesting) {
+        com.example.ui.components.DataFlowLoadingIndicator(
+            title = "Syncing SMS Transactions...",
+            subtitle = "Zero Pay Gateway • Real-Time Webhook Pipeline"
+        )
+    }
+}
+
     if (permissionState.showRationaleDialog) {
         SmsPermissionRationaleDialog(
             onConfirm = {
@@ -582,7 +718,6 @@ fun HomeScreen(
         )
     }
 
-    // Direct system settings dialog if permanently denied
     if (permissionState.showSettingsDialog) {
         SmsPermissionSettingsDialog(
             onOpenSettings = {
@@ -606,29 +741,27 @@ private fun StatSummaryCard(
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = backgroundColor
-        ),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 14.dp, horizontal = 10.dp),
+                .padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Surface(
                 shape = CircleShape,
                 color = accentColor.copy(alpha = 0.15f),
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(32.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = accentColor,
-                    modifier = Modifier.padding(7.dp).fillMaxSize()
+                    modifier = Modifier.padding(6.dp).fillMaxSize()
                 )
             }
             Text(
@@ -651,17 +784,25 @@ private fun StatSummaryCard(
 
 @Composable
 private fun RecentSmsItemCard(log: SmsLogEntity) {
-    val isSuccess = log.status == "SUCCESS"
-    val statusColor = if (isSuccess) ZeroGreenSuccess else if (log.status == "PAUSED") Color(0xFF64748B) else ZeroRedError
+    val isSuccess = log.status == "SUCCESS" || log.status == "SYNCED"
+    val isUnpaired = log.status.contains("Not Paired", ignoreCase = true)
+    val statusColor = if (isSuccess) {
+        ZeroGreenSuccess
+    } else if (isUnpaired) {
+        Color(0xFFD97706)
+    } else if (log.status == "PAUSED" || log.status == "FILTERED") {
+        Color(0xFF64748B)
+    } else {
+        ZeroRedError
+    }
 
-    // Extract potential TrxID
     val trxId = remember(log.messageBody) {
         val regex = Regex("""(?i)(?:TrxID|TxnId|TxID|Transaction ID|Ref:?)\s*[:#]?\s*([A-Za-z0-9]+)""")
         regex.find(log.messageBody)?.groupValues?.getOrNull(1)
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag("sms_card_${log.id}"),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -701,7 +842,6 @@ private fun RecentSmsItemCard(log: SmsLogEntity) {
                     }
                 }
 
-                // Status badge
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = statusColor.copy(alpha = 0.12f)

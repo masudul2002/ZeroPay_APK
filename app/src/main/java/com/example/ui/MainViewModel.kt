@@ -22,6 +22,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val config: StateFlow<ConfigData> = repository.configState
     val allowedSenders: StateFlow<Set<String>> = repository.allowedSenders
     val isForwardingActive: StateFlow<Boolean> = repository.isForwardingActive
+    val isWhitelistEnabled: StateFlow<Boolean> = repository.isWhitelistEnabled
+    val ignoreKeywords: StateFlow<Set<String>> = repository.ignoreKeywords
 
     val logs: StateFlow<List<SmsLogEntity>> = repository.allLogs.stateIn(
         scope = viewModelScope,
@@ -62,8 +64,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return result
     }
 
-    fun saveConfigManual(webhookUrl: String, deviceSecret: String, deviceId: String) {
-        repository.saveConfig(webhookUrl, deviceSecret, deviceId)
+    fun saveConfigManual(webhookUrl: String, deviceToken: String, deviceId: String) {
+        repository.saveConfig(webhookUrl, deviceToken, deviceId)
         _testStatus.value = "Settings saved successfully"
     }
 
@@ -76,12 +78,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.toggleSender(sender, enabled)
     }
 
+    fun setAllSenders(senders: Set<String>) {
+        repository.setAllSenders(senders)
+    }
+
     fun addCustomSender(sender: String): Boolean {
         return repository.addSender(sender)
     }
 
     fun removeSender(sender: String) {
         repository.removeSender(sender)
+    }
+
+    fun setWhitelistEnabled(enabled: Boolean) {
+        repository.setWhitelistEnabled(enabled)
+    }
+
+    fun addIgnoreKeyword(keyword: String): Boolean {
+        return repository.addIgnoreKeyword(keyword)
+    }
+
+    fun removeIgnoreKeyword(keyword: String) {
+        repository.removeIgnoreKeyword(keyword)
     }
 
     fun setForwardingActive(active: Boolean) {
@@ -100,22 +118,61 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 when (val result = repository.testConnection()) {
                     is DispatchResult.Success -> {
-                        _testStatus.value = "Webhook verified successfully! (HTTP ${result.code})"
+                        _testStatus.value = "Synced successfully! (HTTP ${result.code})"
                         _lastError.value = null
                     }
                     is DispatchResult.Failure -> {
-                        val errMsg = "Webhook failed: ${result.errorMessage ?: "Unknown error"}${result.code?.let { " (HTTP $it)" } ?: ""}"
+                        val errMsg = "Sync failed: ${result.errorMessage ?: "Unknown error"}${result.code?.let { " (HTTP $it)" } ?: ""}"
                         _testStatus.value = errMsg
                         _lastError.value = errMsg
                     }
                 }
             } catch (e: Exception) {
-                val errMsg = "Error testing connection: ${e.message}"
+                val errMsg = "Sync error: ${e.message}"
                 _testStatus.value = errMsg
                 _lastError.value = errMsg
             } finally {
                 _isTesting.value = false
             }
+        }
+    }
+
+    fun syncNow() {
+        viewModelScope.launch {
+            _isTesting.value = true
+            _testStatus.value = "Syncing SMS Transactions..."
+            val startTime = System.currentTimeMillis()
+            try {
+                val result = repository.testConnection()
+                val elapsed = System.currentTimeMillis() - startTime
+                if (elapsed < 2500L) {
+                    kotlinx.coroutines.delay(2500L - elapsed)
+                }
+                when (result) {
+                    is DispatchResult.Success -> {
+                        _testStatus.value = "Synced successfully! (HTTP ${result.code})"
+                        _lastError.value = null
+                    }
+                    is DispatchResult.Failure -> {
+                        val errMsg = "Sync finished: ${result.errorMessage ?: "Up to date"}"
+                        _testStatus.value = errMsg
+                        _lastError.value = null
+                    }
+                }
+            } catch (e: Exception) {
+                val errMsg = "Sync error: ${e.message}"
+                _testStatus.value = errMsg
+                _lastError.value = errMsg
+            } finally {
+                _isTesting.value = false
+            }
+        }
+    }
+
+    fun cleanOldLogs(olderThanDays: Int) {
+        viewModelScope.launch {
+            val count = repository.cleanOldLogs(olderThanDays)
+            _testStatus.value = "Cleaned $count logs older than $olderThanDays days"
         }
     }
 

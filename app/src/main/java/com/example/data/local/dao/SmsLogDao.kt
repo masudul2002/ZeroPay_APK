@@ -16,10 +16,10 @@ interface SmsLogDao {
     @Query("SELECT * FROM sms_logs ORDER BY createdAtMillis DESC LIMIT :limit")
     fun getRecentLogs(limit: Int = 50): Flow<List<SmsLogEntity>>
 
-    @Query("SELECT COUNT(*) FROM sms_logs WHERE status = 'SUCCESS'")
+    @Query("SELECT COUNT(*) FROM sms_logs WHERE status = 'SUCCESS' OR status = 'SYNCED'")
     fun getSuccessCount(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM sms_logs WHERE status = 'FAILED'")
+    @Query("SELECT COUNT(*) FROM sms_logs WHERE status LIKE '%FAIL%'")
     fun getFailedCount(): Flow<Int>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -30,4 +30,7 @@ interface SmsLogDao {
 
     @Query("DELETE FROM sms_logs")
     suspend fun clearAll()
+
+    @Query("DELETE FROM sms_logs WHERE createdAtMillis < :cutoffMillis")
+    suspend fun deleteLogsOlderThan(cutoffMillis: Long): Int
 }

@@ -71,39 +71,9 @@ fun SplashScreen(
             .testTag("splash_screen"),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(24.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = Color.White,
-                shadowElevation = 6.dp,
-                modifier = Modifier
-                    .size(220.dp)
-                    .scale(scale.value)
-                    .alpha(alpha.value)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.logo),
-                    contentDescription = "ZeroPay Logo",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .size(24.dp)
-                    .alpha(alpha.value),
-                color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 2.5.dp
-            )
-        }
+        com.example.ui.components.DataFlowLoadingIndicator(
+            title = "Zero Pay Gateway",
+            subtitle = "PAYMENTS WITHOUT LIMITS • INITIALIZING..."
+        )
     }
 }

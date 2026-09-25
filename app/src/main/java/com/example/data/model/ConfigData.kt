@@ -1,12 +1,15 @@
 package com.example.data.model
 
 data class ConfigData(
-    val webhookUrl: String,
-    val deviceSecret: String,
-    val deviceId: String
+    val webhookUrl: String = "",
+    val deviceToken: String = "",
+    val deviceId: String = ""
 ) {
+    val deviceSecret: String
+        get() = deviceToken
+
     val isConfigured: Boolean
-        get() = webhookUrl.isNotBlank() && deviceSecret.isNotBlank() && deviceId.isNotBlank()
+        get() = webhookUrl.isNotBlank() && deviceToken.isNotBlank() && deviceId.isNotBlank()
 }
 
 data class WebhookPayload(

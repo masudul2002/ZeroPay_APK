@@ -120,7 +120,7 @@ fun ScannerScreen(
         QrCodeAnalyzer { rawScannedText ->
             val result = viewModel.onQrScanned(rawScannedText)
             if (result.isSuccess) {
-                scannedSuccessConfig = result.getOrNull()
+                onScanSuccess()
             } else {
                 scanErrorMessage = result.exceptionOrNull()?.message ?: "Invalid QR code format"
             }
@@ -253,15 +253,14 @@ fun ScannerScreen(
                         shape = RoundedCornerShape(10.dp),
                         color = Color.White,
                         shadowElevation = 2.dp,
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(54.dp)
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.logo),
-                            contentDescription = "Logo",
+                            painter = painterResource(id = R.drawable.logo_white_bg),
+                            contentDescription = "Zero Pay Logo",
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(4.dp)
-                                ,
+                                .padding(4.dp),
                             contentScale = ContentScale.Fit
                         )
                     }
@@ -282,10 +281,10 @@ fun ScannerScreen(
                     OutlinedButton(
                         onClick = {
                             // Demo payload button for instant testing
-                            val demoJson = """{"webhookUrl": "https://zeropay-dev.vercel.app/api/webhooks/sms", "deviceSecret": "dev-device-secret-12345", "deviceId": "android-samsung-a52-01"}"""
+                            val demoJson = """{"webhookUrl": "https://zeropay-dev.vercel.app/api/v1/webhook", "deviceToken": "dev-token-secret-12345", "deviceId": "android-samsung-a52-01"}"""
                             val result = viewModel.onQrScanned(demoJson)
                             if (result.isSuccess) {
-                                scannedSuccessConfig = result.getOrNull()
+                                onScanSuccess()
                             }
                         },
                         modifier = Modifier.fillMaxWidth().testTag("use_sample_qr_button")
@@ -445,7 +444,7 @@ fun ScannerScreen(
                         val result = viewModel.onQrScanned(manualJsonText)
                         if (result.isSuccess) {
                             showManualInputDialog = false
-                            scannedSuccessConfig = result.getOrNull()
+                            onScanSuccess()
                         } else {
                             scanErrorMessage = result.exceptionOrNull()?.message ?: "Failed to parse JSON"
                         }

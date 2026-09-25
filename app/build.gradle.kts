@@ -31,7 +31,9 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
+      val rootKeystore = file("${rootDir}/debug.keystore")
+      val homeKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+      storeFile = if (rootKeystore.exists()) rootKeystore else homeKeystore
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"
@@ -135,4 +137,8 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+}
+
+tasks.withType<JavaCompile>().configureEach {
+  enabled = false
 }

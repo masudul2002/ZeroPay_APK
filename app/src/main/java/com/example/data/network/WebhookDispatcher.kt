@@ -36,15 +36,22 @@ class WebhookDispatcher(
         simSlot: String = "SIM_1",
         isoTimestamp: String = getCurrentIsoTimestamp()
     ): DispatchResult = withContext(Dispatchers.IO) {
-        if (!config.isConfigured) {
+        if (config.deviceToken.isBlank() || config.deviceId.isBlank()) {
             return@withContext DispatchResult.Failure(
                 code = null,
-                errorMessage = "Device not configured. Webhook URL, secret, or device ID is missing."
+                errorMessage = "Failed: Not Paired"
+            )
+        }
+
+        if (config.webhookUrl.isBlank()) {
+            return@withContext DispatchResult.Failure(
+                code = null,
+                errorMessage = "Missing webhook URL"
             )
         }
 
         try {
-            // Strict JSON Payload Format specified in requirements:
+            // Strict JSON Payload Format:
             // {
             //   "sender": "<extracted_sender>",
             //   "messageBody": "<extracted_message_body>",
@@ -69,7 +76,7 @@ class WebhookDispatcher(
             val request = Request.Builder()
                 .url(config.webhookUrl)
                 .addHeader("Content-Type", "application/json")
-                .addHeader("Authorization", "Bearer ${config.deviceSecret}")
+                .addHeader("Authorization", "Bearer ${config.deviceToken}")
                 .post(requestBody)
                 .build()
 
@@ -96,6 +103,9 @@ class WebhookDispatcher(
     }
 
     suspend fun testConnection(config: ConfigData): DispatchResult {
+        if (config.deviceToken.isBlank()) {
+            return DispatchResult.Failure(code = null, errorMessage = "Failed: Not Paired")
+        }
         return dispatchSms(
             config = config,
             sender = "TEST_PING",

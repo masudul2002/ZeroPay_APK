@@ -119,55 +119,23 @@ fun SetupScreen(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Official Logo
-        Surface(
-            shape = CircleShape,
-            color = Color.White,
-            shadowElevation = 3.dp,
-            modifier = Modifier.size(92.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.logo),
-                contentDescription = "Logo",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(6.dp)
-                    ,
-                contentScale = ContentScale.Fit
-            )
-        }
+        // Official Logo with Full Branding
+        Image(
+            painter = painterResource(id = R.drawable.logo_white_bg),
+            contentDescription = "Zero Pay",
+            modifier = Modifier
+                .height(100.dp)
+                .fillMaxWidth(),
+            contentScale = ContentScale.Fit
+        )
 
-        // Welcome / Brand Title
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Zero",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0052FF)
-                )
-                Text(
-                    text = "Pay",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00D2FF)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Gateway",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Connect this device to your ZeroPay server to start automated SMS payment forwarding.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-        }
+        // Description Subtitle
+        Text(
+            text = "Connect this device to your ZeroPay server to start automated SMS payment forwarding.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
 
         // Ready to Connect Status Badge
         Card(
@@ -479,7 +447,7 @@ fun SetupScreen(
                                     }
                                     viewModel.saveConfigManual(
                                         webhookUrl = manualWebhookUrl.trim(),
-                                        deviceSecret = manualDeviceSecret.trim(),
+                                        deviceToken = manualDeviceSecret.trim(),
                                         deviceId = manualDeviceId.trim().ifBlank { "sim-gateway-01" }
                                     )
                                     viewModel.sendTestWebhook()

@@ -13,13 +13,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -57,7 +58,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.MainViewModel
-import com.example.ui.screens.ForwardScreen
+import com.example.ui.screens.FiltersScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LogsScreen
 import com.example.ui.screens.ScannerScreen
@@ -73,10 +74,10 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Setup : Screen("setup", "Setup", Icons.Default.QrCodeScanner)
     object Scanner : Screen("scanner", "Scanner", Icons.Default.QrCodeScanner)
 
-    // 4 Bottom Navigation Destinations
+    // Strict 4-Tab Bottom Navigation Destinations: Home, SMS Log, Filters, Settings
     object Home : Screen("home", "Home", Icons.Default.Home)
-    object Forward : Screen("forward", "Forward", Icons.AutoMirrored.Filled.Send)
     object SmsLog : Screen("sms_log", "SMS Log", Icons.Default.History)
+    object Filters : Screen("filters", "Filters", Icons.Default.FilterList)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
@@ -97,11 +98,11 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                // 4 items in exact required order: Home, Forward, SMS Log, Settings
+                // 4 items in strict required order: Home, SMS Log, Filters, Settings
                 val bottomNavItems = listOf(
                     Screen.Home,
-                    Screen.Forward,
                     Screen.SmsLog,
+                    Screen.Filters,
                     Screen.Settings
                 )
 
@@ -119,45 +120,18 @@ class MainActivity : ComponentActivity() {
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = Color.White,
-                                            shadowElevation = 1.dp,
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Image(
-                                                painter = painterResource(id = R.drawable.logo),
-                                                contentDescription = "Logo",
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    ,
-                                                contentScale = ContentScale.Fit
-                                            )
-                                        }
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "Zero",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF0052FF)
-                                            )
-                                            Text(
-                                                text = "Pay",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF00D2FF)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "Forwarder",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                        }
+                                        Image(
+                                            painter = painterResource(id = R.drawable.logo_white_bg),
+                                            contentDescription = "Zero Pay",
+                                            modifier = Modifier
+                                                .height(34.dp)
+                                                .padding(vertical = 2.dp),
+                                            contentScale = ContentScale.Fit
+                                        )
                                         Box(
                                             modifier = Modifier
                                                 .size(8.dp)
-                                                
+                                                .clip(CircleShape)
                                                 .background(if (config.isConfigured) ZeroGreenSuccess else Color(0xFF94A3B8))
                                         )
                                     }
@@ -214,7 +188,7 @@ class MainActivity : ComponentActivity() {
                         composable(Screen.Splash.route) {
                             SplashScreen(
                                 onSplashComplete = {
-                                    // Check if webhookUrl and deviceSecret are configured
+                                    // Check if configured
                                     if (config.isConfigured) {
                                         navController.navigate(Screen.Home.route) {
                                             popUpTo(Screen.Splash.route) { inclusive = true }
@@ -228,7 +202,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // 2. Setup Screen (Unconfigured: Ready to Connect, QR Scanner, Manual Setup)
+                        // 2. Setup Screen (Ready to Connect, QR Scanner, Manual Setup)
                         composable(Screen.Setup.route) {
                             SetupScreen(
                                 viewModel = viewModel,
@@ -256,7 +230,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // 4. Main App Destination 1: Home (Monitor Dashboard)
+                        // 4. Tab 1: Home (Connection Status, Sync Button, 4 TabRow, Recent Cards)
                         composable(Screen.Home.route) {
                             HomeScreen(
                                 viewModel = viewModel,
@@ -267,17 +241,17 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // 5. Main App Destination 2: Forward (Forwarding Logs with Success/Failed Tabs)
-                        composable(Screen.Forward.route) {
-                            ForwardScreen(viewModel = viewModel)
-                        }
-
-                        // 6. Main App Destination 3: SMS Log (All SMS History)
+                        // 5. Tab 2: SMS Log (Full-history page with search bar & LazyColumn)
                         composable(Screen.SmsLog.route) {
                             LogsScreen(viewModel = viewModel)
                         }
 
-                        // 7. Main App Destination 4: Settings (Configurations)
+                        // 6. Tab 3: Filters (MFS/Bank domains whitelist switches)
+                        composable(Screen.Filters.route) {
+                            FiltersScreen(viewModel = viewModel)
+                        }
+
+                        // 7. Tab 4: Settings (User profile, bar chart, cleaning, ignore keywords, toggles)
                         composable(Screen.Settings.route) {
                             SettingsScreen(viewModel = viewModel)
                         }
