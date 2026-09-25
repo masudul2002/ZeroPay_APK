@@ -7,14 +7,15 @@ on:
       - 'v*'
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build APK & Attach Release
+    name: Build APK & Release
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
+    - name: Checkout Repository
       uses: actions/checkout@v4
 
     - name: Set up JDK 17
@@ -22,34 +23,65 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Grant Execute Permission to Gradlew
-      run: chmod +x gradlew || true
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Validate & Prepare Gradle Wrapper
+      run: |
+        # Check if gradlew exists in root
+        if [ ! -f "./gradlew" ]; then
+          echo "WARNING: gradlew not found in root directory!"
+          # Check if project is in a subfolder
+          SUB_GRADLEW=$(find . -maxdepth 3 -name "gradlew" | head -n 1)
+          if [ -n "$SUB_GRADLEW" ]; then
+            echo "Found gradlew at: $SUB_GRADLEW, linking to root..."
+            chmod +x "$SUB_GRADLEW"
+            ln -sf "$SUB_GRADLEW" ./gradlew
+          else
+            echo "Generating Gradle wrapper via installed Gradle..."
+            gradle wrapper
+          fi
+        fi
+        
+        # Grant execute permissions
+        chmod +x ./gradlew
+        ls -la ./gradlew
 
     - name: Build Debug APK
       run: ./gradlew assembleDebug --stacktrace
+
+    - name: Locate Generated APK
+      id: find_apk
+      run: |
+        APK_PATH=$(find . -name "*.apk" -not -path "*/intermediates/*" | head -n 1)
+        if [ -z "$APK_PATH" ]; then
+          echo "ERROR: No APK generated!"
+          exit 1
+        fi
+        echo "Found APK at: $APK_PATH"
+        echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ZeroPay-SMS-Forwarder-APK
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: ${{ steps.find_apk.outputs.apk_path }}
 
     - name: Create GitHub Release on Tag
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: app/build/outputs/apk/debug/app-debug.apk
+        files: ${{ steps.find_apk.outputs.apk_path }}
         name: ZeroPay SMS Forwarder ${{ github.ref_name }}
         body: |
           ### Zero Pay SMS Forwarder ${{ github.ref_name }}
           Automated MFS SMS Ingestion Client for the Zero Pay SaaS Gateway ecosystem.
-          
+
           **Release Highlights:**
-          - Official ZeroPay branding with clean white background (bKash & Nagad MFS design standard)
-          - Android 13+ Restricted Settings permission auto-detection
-          - Highest priority Telephony SMS BroadcastReceiver
+          - Official ZeroPay branding with clean white background
+          - Android 13+ Runtime SMS & Restricted Settings permission support
+          - Foreground Service & Background SMS BroadcastReceiver
           - Direct integration with `/api/webhooks/sms` endpoint
         draft: false
         prerelease: false

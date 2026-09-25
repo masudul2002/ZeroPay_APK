@@ -58,6 +58,15 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Warning
+import com.example.ui.permission.SmsPermissionRationaleDialog
+import com.example.ui.permission.SmsPermissionSettingsDialog
+import com.example.ui.permission.rememberSmsPermissionState
+import com.example.ui.theme.ZeroGreenSuccess
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.MainViewModel
@@ -77,6 +86,13 @@ fun SettingsScreen(
 
     var isSecretVisible by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
+
+    val permissionState = rememberSmsPermissionState()
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        permissionState.handlePermissionResult(perms)
+    }
 
     LazyColumn(
         modifier = modifier
@@ -231,6 +247,142 @@ fun SettingsScreen(
             }
         }
 
+        // App Permissions & Access Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("app_permissions_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "App Permissions & Privacy",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Text(
+                        text = "ZeroPay requires SMS permissions to detect incoming payments in real time. Personal text messages and contacts are never accessed or stored.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // SMS Permission Status Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "SMS Read & Receive",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "RECEIVE_SMS, READ_SMS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (permissionState.hasSmsPermission) ZeroGreenSuccess.copy(alpha = 0.15f) else Color(0xFFEA580C).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (permissionState.hasSmsPermission) "Granted" else "Missing",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (permissionState.hasSmsPermission) ZeroGreenSuccess else Color(0xFFEA580C),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    // Notification Permission Status Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Foreground Notifications",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "POST_NOTIFICATIONS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (permissionState.hasNotificationPermission) ZeroGreenSuccess.copy(alpha = 0.15f) else Color(0xFF94A3B8).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (permissionState.hasNotificationPermission) "Granted" else "Optional",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (permissionState.hasNotificationPermission) ZeroGreenSuccess else Color(0xFF64748B),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (!permissionState.hasSmsPermission) {
+                            Button(
+                                onClick = {
+                                    permissionState.requestPermissions { perms ->
+                                        launcher.launch(perms)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Grant SMS Access")
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                permissionState.openAppSettings()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Manage in Settings")
+                        }
+                    }
+                }
+            }
+        }
+
         // Battery Optimization Exemption Card
         item {
             Card(
@@ -355,6 +507,30 @@ fun SettingsScreen(
                 TextButton(onClick = { showResetDialog = false }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    if (permissionState.showRationaleDialog) {
+        SmsPermissionRationaleDialog(
+            onConfirm = {
+                permissionState.proceedToSystemPrompt { perms ->
+                    launcher.launch(perms)
+                }
+            },
+            onDismiss = {
+                permissionState.showRationaleDialog = false
+            }
+        )
+    }
+
+    if (permissionState.showSettingsDialog) {
+        SmsPermissionSettingsDialog(
+            onOpenSettings = {
+                permissionState.openAppSettings()
+            },
+            onDismiss = {
+                permissionState.showSettingsDialog = false
             }
         )
     }
