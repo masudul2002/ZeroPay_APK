@@ -220,11 +220,13 @@ fun HomeScreen(
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.logo),
-                            contentDescription = "Zero Pay Logo",
+                            contentDescription = "Logo",
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(4.dp),
-                            contentScale = ContentScale.Fit
+                                .padding(4.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Fit,
+                            colorFilter = null
                         )
                     }
                     Column(modifier = Modifier.weight(1f)) {

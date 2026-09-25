@@ -1,7 +1,7 @@
 # Zero Pay SMS Forwarder — Android Client (v1.0.0)
 
 <p align="center">
-  <img src="app/src/main/res/drawable/logo.png" alt="Zero Pay Logo" width="160" style="border-radius: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); background: white; padding: 12px;" />
+  <img src="app/src/main/res/drawable/logo.png" alt="Zero Pay Logo" width="140" />
 </p>
 
 <p align="center">

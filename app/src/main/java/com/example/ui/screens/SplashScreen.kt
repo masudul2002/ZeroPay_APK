@@ -87,12 +87,14 @@ fun SplashScreen(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.logo),
-                    contentDescription = "Zero Pay Logo",
+                    contentDescription = "Logo",
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp)
+                        .clip(CircleShape)
                         .testTag("splash_logo"),
-                    contentScale = ContentScale.Fit
+                    contentScale = ContentScale.Fit,
+                    colorFilter = null
                 )
             }
 

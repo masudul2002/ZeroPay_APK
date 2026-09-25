@@ -113,11 +113,13 @@ class MainActivity : ComponentActivity() {
                                         ) {
                                             androidx.compose.foundation.Image(
                                                 painter = androidx.compose.ui.res.painterResource(id = R.drawable.logo),
-                                                contentDescription = "Zero Pay Logo",
+                                                contentDescription = "Logo",
                                                 modifier = Modifier
                                                     .fillMaxSize()
-                                                    .padding(2.dp),
-                                                contentScale = ContentScale.Fit
+                                                    .padding(2.dp)
+                                                    .clip(CircleShape),
+                                                contentScale = ContentScale.Fit,
+                                                colorFilter = null
                                             )
                                         }
                                         Row(verticalAlignment = Alignment.CenterVertically) {
