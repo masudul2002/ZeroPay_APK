@@ -3,6 +3,7 @@ package com.example.data.network
 import android.util.Log
 import com.example.data.model.ConfigData
 import com.example.data.model.WebhookPayload
+import com.example.util.ExtractedTransactionData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -35,7 +36,8 @@ class WebhookDispatcher(
         sender: String,
         messageBody: String,
         simSlot: String = "SIM_1",
-        isoTimestamp: String = getCurrentIsoTimestamp()
+        isoTimestamp: String = getCurrentIsoTimestamp(),
+        cleanData: ExtractedTransactionData? = null
     ): DispatchResult = withContext(Dispatchers.IO) {
         if (config.deviceToken.isBlank() || config.deviceId.isBlank()) {
             return@withContext DispatchResult.Failure(
@@ -52,18 +54,30 @@ class WebhookDispatcher(
         }
 
         try {
-            // Strict JSON Payload Format:
+            // Clean Payload Dispatch Format:
             // {
+            //   "gateway": "bKash",
+            //   "amount": 500.0,
+            //   "senderNumber": "017XXXXXXXX",
+            //   "trxId": "BLA123XYZ",
+            //   "timestamp": "<current_iso_8601_timestamp>",
             //   "sender": "<extracted_sender>",
             //   "messageBody": "<extracted_message_body>",
-            //   "timestamp": "<current_iso_8601_timestamp>",
             //   "simSlot": "SIM_1",
             //   "deviceId": "<saved_deviceId>"
             // }
             val jsonObject = JSONObject().apply {
+                if (cleanData != null) {
+                    put("gateway", cleanData.gateway)
+                    put("amount", cleanData.amount)
+                    put("trxId", cleanData.trxId)
+                    put("senderNumber", cleanData.senderNumber.orEmpty())
+                    cleanData.fee?.let { put("fee", it) }
+                    cleanData.balance?.let { put("balance", it) }
+                }
                 put("sender", sender)
                 put("messageBody", messageBody)
-                put("timestamp", isoTimestamp)
+                put("timestamp", cleanData?.timestamp ?: isoTimestamp)
                 put("simSlot", simSlot)
                 put("deviceId", config.deviceId)
             }

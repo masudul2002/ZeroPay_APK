@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.entity.SmsLogEntity
 import com.example.data.model.ConfigData
+import com.example.data.model.CustomFilterRule
 import com.example.data.network.DispatchResult
 import com.example.data.repository.SmsRepository
 import com.example.service.SmsForwarderService
@@ -24,6 +25,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isForwardingActive: StateFlow<Boolean> = repository.isForwardingActive
     val isWhitelistEnabled: StateFlow<Boolean> = repository.isWhitelistEnabled
     val ignoreKeywords: StateFlow<Set<String>> = repository.ignoreKeywords
+    val customFilterRules: StateFlow<List<CustomFilterRule>> = repository.customFilterRules
 
     val logs: StateFlow<List<SmsLogEntity>> = repository.allLogs.stateIn(
         scope = viewModelScope,
@@ -104,6 +106,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun removeSender(sender: String) {
         repository.removeSender(sender)
+    }
+
+    fun addCustomFilterRule(rule: CustomFilterRule) {
+        repository.addCustomFilterRule(rule)
+    }
+
+    fun updateCustomFilterRule(rule: CustomFilterRule) {
+        repository.updateCustomFilterRule(rule)
+    }
+
+    fun deleteCustomFilterRule(ruleId: String) {
+        repository.deleteCustomFilterRule(ruleId)
+    }
+
+    fun toggleCustomFilterRule(ruleId: String, enabled: Boolean) {
+        repository.toggleCustomFilterRule(ruleId, enabled)
     }
 
     fun setWhitelistEnabled(enabled: Boolean) {

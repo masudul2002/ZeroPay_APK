@@ -13,6 +13,9 @@ import android.widget.Toast
 import com.example.ZeroPayApp
 import com.example.data.network.DispatchResult
 import com.example.data.repository.SmsRepository
+import com.example.util.ExtractedTransactionData
+import com.example.util.FilterEvaluation
+import com.example.util.SmsFilterAndParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,7 +54,7 @@ class SmsReceiver : BroadcastReceiver() {
 
         val repository = SmsRepository.getInstance(context)
 
-        // Step A: Check if Sender is whitelisted in SharedPreferences. If not -> drop completely.
+        // Step A: Check if Sender is whitelisted. If not -> drop completely.
         if (!repository.isSenderAllowed(sender)) {
             Log.d(TAG, "Step A: Sender '$sender' is not whitelisted in filter list. Dropping completely.")
             return
@@ -66,8 +69,9 @@ class SmsReceiver : BroadcastReceiver() {
             ).show()
         }
 
-        // Step B: Pass body to isTransactionSms().
-        val isTx = isTransactionSms(fullBody)
+        // Step B: Strict Transaction Evaluation & Gateway Parsing
+        val customRules = repository.getCustomFilterRules()
+        val evaluation = SmsFilterAndParser.evaluateSms(sender, fullBody, customRules)
 
         val pendingResult = goAsync()
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -79,41 +83,47 @@ class SmsReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                if (!isTx) {
-                    // Step C: If false, do NOT forward to webhook. Log locally in Room DB as "Status: Ignored (Promotional/OTP)".
-                    Log.d(TAG, "Step C: SMS from '$sender' is not a transaction SMS. Logging as Status: Ignored (Promotional/OTP).")
-                    repository.logIgnoredPromoOrOtp(
-                        sender = sender,
-                        messageBody = fullBody,
-                        simSlot = simSlot
-                    )
-                } else {
-                    // Step D: If true, verify deviceToken and forward via Webhook POST request with Authorization: Bearer <deviceToken>
-                    Log.d(TAG, "Step D: Valid transaction SMS detected from '$sender'. Verifying deviceToken and forwarding to webhook.")
-                    val result = repository.processIncomingSms(
-                        sender = sender,
-                        messageBody = fullBody,
-                        simSlot = simSlot
-                    )
+                when (evaluation) {
+                    is FilterEvaluation.Ignored -> {
+                        // Step C: Drop OTPs, promotional alerts, debit notices, and statements. Log in Room DB.
+                        Log.d(TAG, "Step C: SMS from '$sender' ignored (${evaluation.reason}). Logging locally.")
+                        repository.logIgnoredSms(
+                            sender = sender,
+                            messageBody = fullBody,
+                            simSlot = simSlot,
+                            reason = evaluation.reason
+                        )
+                    }
+                    is FilterEvaluation.Allowed -> {
+                        // Step D: Valid incoming payment receipt. Forward clean payload to webhook.
+                        val cleanData = evaluation.data
+                        Log.d(TAG, "Step D: Valid ${cleanData.gateway} payment receipt detected from '$sender' (Amount: ${cleanData.amount}, TrxID: ${cleanData.trxId}). Forwarding clean payload.")
+                        val result = repository.processIncomingSms(
+                            sender = sender,
+                            messageBody = fullBody,
+                            simSlot = simSlot,
+                            cleanData = cleanData
+                        )
 
-                    withContext(Dispatchers.Main) {
-                        when (result) {
-                            is DispatchResult.Success -> {
-                                Log.d(TAG, "SMS forwarded successfully to Zero Pay webhook!")
-                                ZeroPayApp.showForwardSuccessNotification(
-                                    context = context,
-                                    sender = sender,
-                                    code = result.code
-                                )
-                            }
-                            is DispatchResult.Failure -> {
-                                Log.w(TAG, "SMS dispatch result: ${result.errorMessage}")
-                                if (result.errorMessage != "Forwarding paused") {
-                                    ZeroPayApp.showForwardFailureNotification(
+                        withContext(Dispatchers.Main) {
+                            when (result) {
+                                is DispatchResult.Success -> {
+                                    Log.d(TAG, "SMS forwarded successfully to Zero Pay webhook!")
+                                    ZeroPayApp.showForwardSuccessNotification(
                                         context = context,
-                                        sender = sender,
-                                        error = result.errorMessage
+                                        sender = "${cleanData.gateway} (${cleanData.trxId})",
+                                        code = result.code
                                     )
+                                }
+                                is DispatchResult.Failure -> {
+                                    Log.w(TAG, "SMS dispatch result: ${result.errorMessage}")
+                                    if (result.errorMessage != "Forwarding paused") {
+                                        ZeroPayApp.showForwardFailureNotification(
+                                            context = context,
+                                            sender = sender,
+                                            error = result.errorMessage
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -132,11 +142,8 @@ class SmsReceiver : BroadcastReceiver() {
         }
     }
 
-    /**
-     * Helper function: checks if messageBody contains transaction and financial keywords.
-     */
-    private fun isTransactionSms(messageBody: String): Boolean {
-        return checkIsTransactionSms(messageBody)
+    private fun isTransactionSms(messageBody: String, sender: String = ""): Boolean {
+        return SmsFilterAndParser.evaluateSms(sender, messageBody) is FilterEvaluation.Allowed
     }
 
     private fun detectSimSlot(intent: Intent): String {

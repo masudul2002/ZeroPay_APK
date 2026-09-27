@@ -156,4 +156,127 @@ class ExampleUnitTest {
     val uriPayload = "bkash://payment?merchant=01700000000&amount=500"
     assertTrue("Should detect deep link payment URI", uriPayload.contains("://"))
   }
+
+  @Test
+  fun testStrictOtpAndSecurityDrop() {
+    val bKashOtp = "Your bKash verification code is 493021. Do not share your OTP or PIN with anyone."
+    val eval1 = com.example.util.SmsFilterAndParser.evaluateSms("bKash", bKashOtp)
+    assertTrue("OTP must be ignored", eval1 is com.example.util.FilterEvaluation.Ignored)
+    assertEquals("Dropped: OTP or verification code", (eval1 as com.example.util.FilterEvaluation.Ignored).reason)
+
+    val nagadPin = "Your Nagad PIN reset security code is 881290. Keep it secret."
+    val eval2 = com.example.util.SmsFilterAndParser.evaluateSms("Nagad", nagadPin)
+    assertTrue("Security code must be ignored", eval2 is com.example.util.FilterEvaluation.Ignored)
+  }
+
+  @Test
+  fun testStrictDebitAndStatementDrop() {
+    val bracDebit = "Your A/C ...1234 has been debited by BDT 2,500.00 at ATM Cash Withdrawal on 27-SEP-26. Avail Bal: BDT 5,000.00."
+    val eval1 = com.example.util.SmsFilterAndParser.evaluateSms("BRACBANK", bracDebit)
+    assertTrue("Debit alert must be ignored", eval1 is com.example.util.FilterEvaluation.Ignored)
+    assertEquals("Dropped: Outgoing debit or statement notice", (eval1 as com.example.util.FilterEvaluation.Ignored).reason)
+
+    val statementSms = "Mini statement for A/C ...999: Available balance is BDT 15,200.00. Thank you."
+    val eval2 = com.example.util.SmsFilterAndParser.evaluateSms("CITY BANK", statementSms)
+    assertTrue("Statement notice must be ignored", eval2 is com.example.util.FilterEvaluation.Ignored)
+  }
+
+  @Test
+  fun testStrictPromoWithoutTrxDrop() {
+    val promoSms = "Special offer! Recharge Tk 50 now and win up to 100% bonus cashback! Dial *247#."
+    val eval = com.example.util.SmsFilterAndParser.evaluateSms("bKash", promoSms)
+    assertTrue("Promo without TrxID must be ignored", eval is com.example.util.FilterEvaluation.Ignored)
+  }
+
+  @Test
+  fun testBkashIncomingPaymentParsing() {
+    val sms = "You have received payment Tk 1,250.00 from 01712345678. Ref 01. Fee Tk 0.00. Balance Tk 5,420.50. TrxID 9K3M88219 at 27/09/2026 12:45"
+    val eval = com.example.util.SmsFilterAndParser.evaluateSms("bKash", sms)
+    assertTrue("bKash payment receipt must be allowed", eval is com.example.util.FilterEvaluation.Allowed)
+    val data = (eval as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("bKash", data.gateway)
+    assertEquals(1250.0, data.amount, 0.001)
+    assertEquals("01712345678", data.senderNumber)
+    assertEquals("9K3M88219", data.trxId)
+    assertEquals(0.0, data.fee ?: 0.0, 0.001)
+    assertEquals(5420.50, data.balance ?: 0.0, 0.001)
+  }
+
+  @Test
+  fun testNagadIncomingPaymentParsing() {
+    val sms = "Payment Received. Amount: Tk 800.00. Sender: 01812345678. TxnID: 72J8KL91. Balance: Tk 1,200.00. 27/09/2026 13:10."
+    val eval = com.example.util.SmsFilterAndParser.evaluateSms("Nagad", sms)
+    assertTrue("Nagad payment receipt must be allowed", eval is com.example.util.FilterEvaluation.Allowed)
+    val data = (eval as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Nagad", data.gateway)
+    assertEquals(800.0, data.amount, 0.001)
+    assertEquals("01812345678", data.senderNumber)
+    assertEquals("72J8KL91", data.trxId)
+    assertEquals(1200.0, data.balance ?: 0.0, 0.001)
+  }
+
+  @Test
+  fun testRocketAndCellfinParsing() {
+    val rocketSms = "Received Tk 500.00 from 01912345678. TxnId: 99887766. Balance: Tk 1,500.00."
+    val evalRocket = com.example.util.SmsFilterAndParser.evaluateSms("16216", rocketSms)
+    assertTrue("Rocket receipt must be allowed", evalRocket is com.example.util.FilterEvaluation.Allowed)
+    val rocketData = (evalRocket as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Rocket", rocketData.gateway)
+    assertEquals(500.0, rocketData.amount, 0.001)
+    assertEquals("99887766", rocketData.trxId)
+
+    val cellfinSms = "Your CellFin has been credited with Tk 3,500.00 from 01512345678. TrxID: CF223344. Balance Tk 4,000.00."
+    val evalCellfin = com.example.util.SmsFilterAndParser.evaluateSms("Cellfin", cellfinSms)
+    assertTrue("CellFin receipt must be allowed", evalCellfin is com.example.util.FilterEvaluation.Allowed)
+    val cellfinData = (evalCellfin as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Cellfin", cellfinData.gateway)
+    assertEquals(3500.0, cellfinData.amount, 0.001)
+    assertEquals("CF223344", cellfinData.trxId)
+  }
+
+  @Test
+  fun testBankCreditReceiptParsing() {
+    val bracSms = "Your A/C ...456 has been credited by BDT 10,000.00 on 27-SEP-26. Ref/Trx: FT26270001 from 01711223344. Avail Bal: BDT 25,000.00."
+    val evalBrac = com.example.util.SmsFilterAndParser.evaluateSms("BRACBANK", bracSms)
+    assertTrue("BRAC Bank credit receipt must be allowed", evalBrac is com.example.util.FilterEvaluation.Allowed)
+    val bracData = (evalBrac as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("BRACBANK", bracData.gateway)
+    assertEquals(10000.0, bracData.amount, 0.001)
+    assertEquals("FT26270001", bracData.trxId)
+
+    val ibblSms = "Dear Customer, A/C ...789 credited with Tk 2,500.00 by Transfer. TrxID: IBBL987654 from 019XXXXXXXX."
+    val evalIbbl = com.example.util.SmsFilterAndParser.evaluateSms("IBBL", ibblSms)
+    assertTrue("IBBL credit receipt must be allowed", evalIbbl is com.example.util.FilterEvaluation.Allowed)
+    val ibblData = (evalIbbl as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("IBBL", ibblData.gateway)
+    assertEquals(2500.0, ibblData.amount, 0.001)
+    assertEquals("IBBL987654", ibblData.trxId)
+  }
+
+  @Test
+  fun testCustomFilterRuleDynamicParsing() {
+    val customRule = com.example.data.model.CustomFilterRule(
+        name = "Midland Custom",
+        senderPattern = "MDB, MIDLANDBANK",
+        bodyRegex = """(?i)A/C\s*\S+\s*credited\s*by\s*Tk\.?\s*([0-9,.]+)\s*on\s*\S+\.?\s*Ref[:\s]*([A-Za-z0-9]+)\s*from\s*([0-9+]+)""",
+        amountGroup = 1,
+        trxIdGroup = 2,
+        senderGroup = 3,
+        enabled = true
+    )
+
+    val sms = "A/C ...012 credited by Tk 4,500.00 on 27-09-2026. Ref: MDB445566 from 01612345678. Available Bal Tk 8,000.00."
+    val eval = com.example.util.SmsFilterAndParser.evaluateSms(
+        sender = "MDB",
+        messageBody = sms,
+        customRules = listOf(customRule)
+    )
+
+    assertTrue("Custom rule should successfully match and extract details", eval is com.example.util.FilterEvaluation.Allowed)
+    val data = (eval as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Midland Custom", data.gateway)
+    assertEquals(4500.0, data.amount, 0.001)
+    assertEquals("MDB445566", data.trxId)
+    assertEquals("01612345678", data.senderNumber)
+  }
 }

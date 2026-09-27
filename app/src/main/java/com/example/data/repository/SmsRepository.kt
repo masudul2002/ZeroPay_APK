@@ -6,8 +6,10 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.SecurePreferencesManager
 import com.example.data.local.entity.SmsLogEntity
 import com.example.data.model.ConfigData
+import com.example.data.model.CustomFilterRule
 import com.example.data.network.DispatchResult
 import com.example.data.network.WebhookDispatcher
+import com.example.util.ExtractedTransactionData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -21,6 +23,7 @@ class SmsRepository(
     val isForwardingActive: StateFlow<Boolean> = securePreferencesManager.isForwardingActive
     val isWhitelistEnabled: StateFlow<Boolean> = securePreferencesManager.isWhitelistEnabled
     val ignoreKeywords: StateFlow<Set<String>> = securePreferencesManager.ignoreKeywords
+    val customFilterRules: StateFlow<List<CustomFilterRule>> = securePreferencesManager.customFilterRules
 
     val allLogs: Flow<List<SmsLogEntity>> = database.smsLogDao().getAllLogs()
     val successCount: Flow<Int> = database.smsLogDao().getSuccessCount()
@@ -82,6 +85,13 @@ class SmsRepository(
         return securePreferencesManager.isSenderAllowed(sender)
     }
 
+    fun getCustomFilterRules(): List<CustomFilterRule> = securePreferencesManager.getCustomFilterRules()
+    fun saveCustomFilterRules(rules: List<CustomFilterRule>) = securePreferencesManager.saveCustomFilterRules(rules)
+    fun addCustomFilterRule(rule: CustomFilterRule) = securePreferencesManager.addCustomFilterRule(rule)
+    fun updateCustomFilterRule(rule: CustomFilterRule) = securePreferencesManager.updateCustomFilterRule(rule)
+    fun deleteCustomFilterRule(ruleId: String) = securePreferencesManager.deleteCustomFilterRule(ruleId)
+    fun toggleCustomFilterRule(ruleId: String, enabled: Boolean) = securePreferencesManager.toggleCustomFilterRule(ruleId, enabled)
+
     suspend fun cleanOldLogs(olderThanDays: Int): Int {
         val cutoffMillis = System.currentTimeMillis() - (olderThanDays.toLong() * 24L * 60L * 60L * 1000L)
         return database.smsLogDao().deleteLogsOlderThan(cutoffMillis)
@@ -100,10 +110,11 @@ class SmsRepository(
         return webhookDispatcher.testConnection(config)
     }
 
-    suspend fun logIgnoredPromoOrOtp(
+    suspend fun logIgnoredSms(
         sender: String,
         messageBody: String,
-        simSlot: String = "SIM_1"
+        simSlot: String = "SIM_1",
+        reason: String = "Filtered: Not a valid financial transaction (Promotional/OTP)"
     ): SmsLogEntity {
         val isoTimestamp = WebhookDispatcher.getCurrentIsoTimestamp()
         val config = securePreferencesManager.readConfig()
@@ -115,16 +126,25 @@ class SmsRepository(
             deviceId = config.deviceId.ifBlank { "NOT_SET" },
             status = "Status: Ignored (Promotional/OTP)",
             httpCode = null,
-            errorMessage = "Filtered: Not a valid financial transaction (Promotional/OTP)"
+            errorMessage = reason
         )
         database.smsLogDao().insertLog(ignoredLog)
         return ignoredLog
     }
 
-    suspend fun processIncomingSms(
+    suspend fun logIgnoredPromoOrOtp(
         sender: String,
         messageBody: String,
         simSlot: String = "SIM_1"
+    ): SmsLogEntity {
+        return logIgnoredSms(sender, messageBody, simSlot, "Filtered: Not a valid financial transaction (Promotional/OTP)")
+    }
+
+    suspend fun processIncomingSms(
+        sender: String,
+        messageBody: String,
+        simSlot: String = "SIM_1",
+        cleanData: ExtractedTransactionData? = null
     ): DispatchResult {
         val isoTimestamp = WebhookDispatcher.getCurrentIsoTimestamp()
         val config = securePreferencesManager.readConfig()
@@ -216,7 +236,8 @@ class SmsRepository(
             sender = sender,
             messageBody = messageBody,
             simSlot = simSlot,
-            isoTimestamp = isoTimestamp
+            isoTimestamp = isoTimestamp,
+            cleanData = cleanData
         )
 
         // 6. Log result into Room database

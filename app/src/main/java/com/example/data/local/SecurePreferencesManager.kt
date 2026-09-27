@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.example.data.model.ConfigData
+import com.example.data.model.CustomFilterRule
 import com.example.data.model.PredefinedSenders
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +54,9 @@ class SecurePreferencesManager(private val context: Context) {
 
     private val _ignoreKeywords = MutableStateFlow(readIgnoreKeywords())
     val ignoreKeywords: StateFlow<Set<String>> = _ignoreKeywords.asStateFlow()
+
+    private val _customFilterRules = MutableStateFlow(getCustomFilterRules())
+    val customFilterRules: StateFlow<List<CustomFilterRule>> = _customFilterRules.asStateFlow()
 
     fun readConfig(): ConfigData {
         val webhookUrl = securePrefs.getString(KEY_WEBHOOK_URL, "").orEmpty()
@@ -241,7 +245,59 @@ class SecurePreferencesManager(private val context: Context) {
         if (!isWhitelistEnabled()) {
             return true
         }
-        return PredefinedSenders.matchesSender(rawSender, _allowedSenders.value)
+        if (PredefinedSenders.matchesSender(rawSender, _allowedSenders.value)) {
+            return true
+        }
+        val s = rawSender.trim().lowercase()
+        return _customFilterRules.value.any { rule ->
+            if (!rule.enabled) return@any false
+            val patterns = rule.senderPattern.split(",").map { it.trim().lowercase() }.filter { it.isNotBlank() }
+            patterns.any { s.contains(it) || it == s }
+        }
+    }
+
+    fun getCustomFilterRules(): List<CustomFilterRule> {
+        val jsonStr = generalPrefs.getString(KEY_CUSTOM_FILTER_RULES, "").orEmpty()
+        return CustomFilterRule.fromJsonList(jsonStr)
+    }
+
+    fun saveCustomFilterRules(rules: List<CustomFilterRule>) {
+        val jsonStr = CustomFilterRule.toJsonList(rules)
+        generalPrefs.edit().putString(KEY_CUSTOM_FILTER_RULES, jsonStr).apply()
+        _customFilterRules.value = rules
+    }
+
+    fun addCustomFilterRule(rule: CustomFilterRule) {
+        val current = getCustomFilterRules().toMutableList()
+        current.removeAll { it.id == rule.id }
+        current.add(0, rule)
+        saveCustomFilterRules(current)
+    }
+
+    fun updateCustomFilterRule(rule: CustomFilterRule) {
+        val current = getCustomFilterRules().toMutableList()
+        val idx = current.indexOfFirst { it.id == rule.id }
+        if (idx != -1) {
+            current[idx] = rule
+        } else {
+            current.add(0, rule)
+        }
+        saveCustomFilterRules(current)
+    }
+
+    fun deleteCustomFilterRule(ruleId: String) {
+        val current = getCustomFilterRules().toMutableList()
+        current.removeAll { it.id == ruleId }
+        saveCustomFilterRules(current)
+    }
+
+    fun toggleCustomFilterRule(ruleId: String, enabled: Boolean) {
+        val current = getCustomFilterRules().toMutableList()
+        val idx = current.indexOfFirst { it.id == ruleId }
+        if (idx != -1) {
+            current[idx] = current[idx].copy(enabled = enabled)
+            saveCustomFilterRules(current)
+        }
     }
 
     fun isForwardingActive(): Boolean {
@@ -312,6 +368,7 @@ class SecurePreferencesManager(private val context: Context) {
         private const val KEY_WHITELIST_ENABLED = "whitelist_validation_enabled"
         private const val KEY_IGNORE_KEYWORDS = "ignore_keywords_list"
         private const val KEY_LAST_SCANNED_PAYLOAD = "last_scanned_payload"
+        private const val KEY_CUSTOM_FILTER_RULES = "custom_filter_rules_list"
 
         val DEFAULT_SENDERS = PredefinedSenders.DEFAULT_ENABLED_IDS
 
