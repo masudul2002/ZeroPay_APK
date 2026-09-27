@@ -52,17 +52,17 @@ jobs:
     - name: Generate debug keystore
       run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
 
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug -Djava.awt.headless=true --stacktrace
+    - name: Build Release and Debug APKs
+      run: ./gradlew assembleRelease assembleDebug -Djava.awt.headless=true --stacktrace
       env:
         JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
 
     - name: Prepare Release Asset
       run: |
         mkdir -p release
-        APK_FOUND=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+        APK_FOUND=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n 1)
         if [ -z "$APK_FOUND" ]; then
-          APK_FOUND=$(find . -name "*.apk" -not -path "*/intermediates/*" | head -n 1)
+          APK_FOUND=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
         fi
         
         TAG_NAME="${GITHUB_REF_NAME:-v1.0.2}"
