@@ -98,10 +98,11 @@ jobs:
           - **[Download ZeroPay APK](https://github.com/masudul2002/ZeroPay_APK/releases/download/${{ github.ref_name }}/ZeroPay-${{ github.ref_name }}.apk)**
 
           #### ⚡ Features & Updates:
+          - **Bypass False 'Not Paired' Blocking & Auto-Handshake:** Ensures captured payment SMS are never dropped due to desynchronized pairing flags, with automatic silent handshake and queued retry fallback.
           - **QR Auto-Connect & Pairing Sync Ping:** Fully compatible with Next.js web dashboard (`POST /api/v1/webhook`).
-          - **Smart Transaction Filtering:** Automatically filters real financial transactions from bKash, Nagad, Rocket, BRACBANK, etc., dropping OTPs and promotional spam.
+          - **Smart Transaction Filtering:** Automatically filters real financial transactions from bKash, Nagad, Rocket, BRACBANK, IBBL, etc., dropping OTPs and promotional spam.
           - **4-Tab Navigation & Manual Setup:** Complete Home, SMS Log, Filters, and Settings tabs with paste JSON support.
-          - **Native Jetpack Compose Data Flow Pipeline:** Circuit and electric particle animation while syncing.
+          - **Autonomous Background Forwarder:** Self-healing retry worker automatically syncs pending offline messages.
         draft: false
         prerelease: false
       env:
