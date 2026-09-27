@@ -106,5 +106,28 @@ class ZeroPayApp : Application() {
                 // Notification permission might not be granted
             }
         }
+
+        fun showForwardQueuedNotification(context: Context, sender: String, note: String) {
+            try {
+                val intent = Intent(context, MainActivity::class.java)
+                val pendingIntent = PendingIntent.getActivity(
+                    context, 0, intent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+
+                val notification = NotificationCompat.Builder(context, CHANNEL_ALERTS_ID)
+                    .setSmallIcon(android.R.drawable.ic_popup_sync)
+                    .setContentTitle("SMS Queued: $sender")
+                    .setContentText(note)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setContentIntent(pendingIntent)
+                    .setAutoCancel(true)
+                    .build()
+
+                NotificationManagerCompat.from(context).notify(System.currentTimeMillis().toInt(), notification)
+            } catch (ignored: SecurityException) {
+                // Notification permission might not be granted
+            }
+        }
     }
 }

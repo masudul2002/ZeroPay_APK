@@ -241,7 +241,7 @@ fun HomeScreen(
                                 }
                             }
                             Text(
-                                text = if (config.isConfigured) "Device: ${config.deviceId}" else "Scan QR from dashboard to pair",
+                                text = if (config.isConfigured) "Device: ${config.effectiveDeviceId}" else "Scan QR from dashboard to pair",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,

@@ -118,11 +118,19 @@ class SmsReceiver : BroadcastReceiver() {
                                 is DispatchResult.Failure -> {
                                     Log.w(TAG, "SMS dispatch result: ${result.errorMessage}")
                                     if (result.errorMessage != "Forwarding paused") {
-                                        ZeroPayApp.showForwardFailureNotification(
-                                            context = context,
-                                            sender = sender,
-                                            error = result.errorMessage
-                                        )
+                                        if (result.errorMessage.contains("queued", ignoreCase = true) || result.errorMessage.contains("retry", ignoreCase = true)) {
+                                            ZeroPayApp.showForwardQueuedNotification(
+                                                context = context,
+                                                sender = "${cleanData.gateway} (${cleanData.trxId})",
+                                                note = result.errorMessage
+                                            )
+                                        } else {
+                                            ZeroPayApp.showForwardFailureNotification(
+                                                context = context,
+                                                sender = sender,
+                                                error = result.errorMessage
+                                            )
+                                        }
                                     }
                                 }
                             }

@@ -16,13 +16,17 @@ import com.example.data.repository.SmsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class SmsForwarderService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private lateinit var repository: SmsRepository
+    private var retryJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -31,6 +35,7 @@ class SmsForwarderService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP_SERVICE) {
+            retryJob?.cancel()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
@@ -54,6 +59,21 @@ class SmsForwarderService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager?.notify(NOTIFICATION_ID, updated)
         }.launchIn(serviceScope)
+
+        // Periodic background worker: auto-retries queued/offline messages every 30 seconds
+        if (retryJob == null || retryJob?.isCancelled == true) {
+            retryJob = serviceScope.launch(Dispatchers.IO) {
+                while (isActive) {
+                    delay(30_000L)
+                    try {
+                        val config = repository.getConfig()
+                        if (config.isConfigured && repository.isForwardingActive.value && repository.isNetworkConnected()) {
+                            repository.retryAllFailed()
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+        }
 
         return START_STICKY
     }

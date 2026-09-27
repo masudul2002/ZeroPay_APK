@@ -279,4 +279,53 @@ class ExampleUnitTest {
     assertEquals("MDB445566", data.trxId)
     assertEquals("01612345678", data.senderNumber)
   }
+
+  @Test
+  fun testBypassFalseNotPairedWithValidTokenAndUrl() {
+    // When deviceId is missing or empty, config is still configured as long as webhookUrl and deviceToken are present
+    val configWithoutDeviceId = com.example.data.model.ConfigData(
+      webhookUrl = "https://zeropay.example.com/api/v1/webhook",
+      deviceToken = "secret_tok_123",
+      deviceId = ""
+    )
+
+    assertTrue("App must be considered configured even if deviceId is empty", configWithoutDeviceId.isConfigured)
+    assertEquals("sim-gateway-01", configWithoutDeviceId.effectiveDeviceId)
+
+    // With blank spaces in deviceId
+    val configWithWhitespaceDeviceId = com.example.data.model.ConfigData(
+      webhookUrl = "https://zeropay.example.com/api/v1/webhook",
+      deviceToken = "secret_tok_123",
+      deviceId = "   "
+    )
+    assertTrue("App must be considered configured with whitespace deviceId", configWithWhitespaceDeviceId.isConfigured)
+    assertEquals("sim-gateway-01", configWithWhitespaceDeviceId.effectiveDeviceId)
+
+    // With explicit deviceId
+    val configWithDeviceId = com.example.data.model.ConfigData(
+      webhookUrl = "https://zeropay.example.com/api/v1/webhook",
+      deviceToken = "secret_tok_123",
+      deviceId = "phone-pos-99"
+    )
+    assertTrue(configWithDeviceId.isConfigured)
+    assertEquals("phone-pos-99", configWithDeviceId.effectiveDeviceId)
+
+    // When token is absent, should not be configured
+    val unconfigured = com.example.data.model.ConfigData(
+      webhookUrl = "https://zeropay.example.com/api/v1/webhook",
+      deviceToken = "",
+      deviceId = "phone-pos-99"
+    )
+    assertFalse("Must not be configured if deviceToken is blank", unconfigured.isConfigured)
+  }
+
+  @Test
+  fun testDeviceTokenSecretEquivalence() {
+    val config = com.example.data.model.ConfigData(
+      webhookUrl = "https://zeropay.example.com/webhook",
+      deviceToken = "tok_abc"
+    )
+    assertEquals("tok_abc", config.deviceSecret)
+    assertEquals("tok_abc", config.deviceToken)
+  }
 }

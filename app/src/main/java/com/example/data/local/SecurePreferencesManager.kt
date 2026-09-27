@@ -62,18 +62,25 @@ class SecurePreferencesManager(private val context: Context) {
         val webhookUrl = securePrefs.getString(KEY_WEBHOOK_URL, "").orEmpty()
         val deviceToken = (securePrefs.getString(KEY_DEVICE_TOKEN, null)
             ?: securePrefs.getString(KEY_DEVICE_SECRET, "")).orEmpty()
-        val deviceId = securePrefs.getString(KEY_DEVICE_ID, "").orEmpty()
+        var deviceId = securePrefs.getString(KEY_DEVICE_ID, "").orEmpty()
+        if (deviceId.isBlank() && webhookUrl.isNotBlank() && deviceToken.isNotBlank()) {
+            deviceId = "sim-gateway-01"
+            securePrefs.edit().putString(KEY_DEVICE_ID, deviceId).apply()
+        }
         return ConfigData(webhookUrl = webhookUrl, deviceToken = deviceToken, deviceId = deviceId)
     }
 
     fun saveConfig(webhookUrl: String, deviceToken: String, deviceId: String) {
+        val resolvedDeviceId = deviceId.trim().ifBlank {
+            if (webhookUrl.isNotBlank() && deviceToken.isNotBlank()) "sim-gateway-01" else ""
+        }
         securePrefs.edit()
             .putString(KEY_WEBHOOK_URL, webhookUrl.trim())
             .putString(KEY_DEVICE_TOKEN, deviceToken.trim())
             .putString(KEY_DEVICE_SECRET, deviceToken.trim())
-            .putString(KEY_DEVICE_ID, deviceId.trim())
+            .putString(KEY_DEVICE_ID, resolvedDeviceId)
             .apply()
-        _configState.value = ConfigData(webhookUrl.trim(), deviceToken.trim(), deviceId.trim())
+        _configState.value = ConfigData(webhookUrl.trim(), deviceToken.trim(), resolvedDeviceId)
     }
 
     fun readLastScannedPayload(): String = securePrefs.getString(KEY_LAST_SCANNED_PAYLOAD, "").orEmpty()

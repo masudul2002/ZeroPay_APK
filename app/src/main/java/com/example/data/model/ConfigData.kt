@@ -8,8 +8,13 @@ data class ConfigData(
     val deviceSecret: String
         get() = deviceToken
 
+    val effectiveDeviceId: String
+        get() = deviceId.trim().ifBlank { "sim-gateway-01" }
+
+    // Bypass false "Not Paired" blocking: as long as a valid webhookUrl and deviceToken exist,
+    // the app is considered configured and ready to forward payment SMS.
     val isConfigured: Boolean
-        get() = webhookUrl.isNotBlank() && deviceToken.isNotBlank() && deviceId.isNotBlank()
+        get() = webhookUrl.isNotBlank() && deviceToken.isNotBlank()
 }
 
 data class WebhookPayload(

@@ -177,6 +177,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _testStatus.value = "Syncing SMS Transactions..."
             val startTime = System.currentTimeMillis()
             try {
+                val retriedCount = repository.retryAllFailed()
                 val result = repository.testConnection()
                 val elapsed = System.currentTimeMillis() - startTime
                 if (elapsed < 2500L) {
@@ -184,7 +185,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 when (result) {
                     is DispatchResult.Success -> {
-                        _testStatus.value = "Synced successfully! (HTTP ${result.code})"
+                        val retrySuffix = if (retriedCount > 0) " ($retriedCount pending SMS forwarded)" else ""
+                        _testStatus.value = "Synced successfully!$retrySuffix (HTTP ${result.code})"
                         _lastError.value = null
                     }
                     is DispatchResult.Failure -> {

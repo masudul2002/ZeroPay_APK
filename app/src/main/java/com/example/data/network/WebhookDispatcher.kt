@@ -39,17 +39,20 @@ class WebhookDispatcher(
         isoTimestamp: String = getCurrentIsoTimestamp(),
         cleanData: ExtractedTransactionData? = null
     ): DispatchResult = withContext(Dispatchers.IO) {
-        if (config.deviceToken.isBlank() || config.deviceId.isBlank()) {
-            return@withContext DispatchResult.Failure(
-                code = null,
-                errorMessage = "Failed: Not Paired"
-            )
-        }
+        val effectiveToken = config.deviceToken.ifBlank { config.deviceSecret }.trim()
+        val effectiveDeviceId = config.effectiveDeviceId
 
         if (config.webhookUrl.isBlank()) {
             return@withContext DispatchResult.Failure(
                 code = null,
                 errorMessage = "Missing webhook URL"
+            )
+        }
+
+        if (effectiveToken.isBlank()) {
+            return@withContext DispatchResult.Failure(
+                code = null,
+                errorMessage = "Failed: Not Paired"
             )
         }
 
@@ -79,7 +82,7 @@ class WebhookDispatcher(
                 put("messageBody", messageBody)
                 put("timestamp", cleanData?.timestamp ?: isoTimestamp)
                 put("simSlot", simSlot)
-                put("deviceId", config.deviceId)
+                put("deviceId", effectiveDeviceId)
             }
 
             val jsonString = jsonObject.toString()
@@ -91,7 +94,7 @@ class WebhookDispatcher(
             val request = Request.Builder()
                 .url(config.webhookUrl)
                 .addHeader("Content-Type", "application/json")
-                .addHeader("Authorization", "Bearer ${config.deviceToken}")
+                .addHeader("Authorization", "Bearer $effectiveToken")
                 .post(requestBody)
                 .build()
 
@@ -118,20 +121,23 @@ class WebhookDispatcher(
     }
 
     suspend fun testConnection(config: ConfigData): DispatchResult = withContext(Dispatchers.IO) {
-        if (config.deviceToken.isBlank()) {
-            return@withContext DispatchResult.Failure(code = null, errorMessage = "Failed: Not Paired")
-        }
+        val effectiveToken = config.deviceToken.ifBlank { config.deviceSecret }.trim()
+        val effectiveDeviceId = config.effectiveDeviceId
 
         if (config.webhookUrl.isBlank()) {
             return@withContext DispatchResult.Failure(code = null, errorMessage = "Missing webhook URL")
+        }
+
+        if (effectiveToken.isBlank()) {
+            return@withContext DispatchResult.Failure(code = null, errorMessage = "Failed: Not Paired")
         }
 
         try {
             // Pairing sync "PING" request
             val jsonObject = JSONObject().apply {
                 put("action", "PING")
-                put("deviceId", config.deviceId)
-                put("deviceToken", config.deviceToken)
+                put("deviceId", effectiveDeviceId)
+                put("deviceToken", effectiveToken)
                 put("timestamp", getCurrentIsoTimestamp())
             }
 
@@ -144,7 +150,7 @@ class WebhookDispatcher(
             val request = Request.Builder()
                 .url(config.webhookUrl)
                 .addHeader("Content-Type", "application/json")
-                .addHeader("Authorization", "Bearer ${config.deviceToken}")
+                .addHeader("Authorization", "Bearer $effectiveToken")
                 .post(requestBody)
                 .build()
 

@@ -19,7 +19,7 @@ interface SmsLogDao {
     @Query("SELECT COUNT(*) FROM sms_logs WHERE status = 'SUCCESS' OR status = 'SYNCED'")
     fun getSuccessCount(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM sms_logs WHERE status LIKE '%FAIL%'")
+    @Query("SELECT COUNT(*) FROM sms_logs WHERE status LIKE '%FAIL%' OR status LIKE '%RETRY%' OR status LIKE '%QUEUE%'")
     fun getFailedCount(): Flow<Int>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -37,6 +37,6 @@ interface SmsLogDao {
     @Query("UPDATE sms_logs SET status = :status, httpCode = :httpCode, errorMessage = :errorMessage WHERE id = :id")
     suspend fun updateLogStatus(id: Long, status: String, httpCode: Int?, errorMessage: String?)
 
-    @Query("SELECT * FROM sms_logs WHERE status LIKE '%FAIL%' ORDER BY createdAtMillis ASC")
+    @Query("SELECT * FROM sms_logs WHERE status LIKE '%FAIL%' OR status LIKE '%RETRY%' OR status LIKE '%QUEUE%' ORDER BY createdAtMillis ASC")
     suspend fun getFailedLogsList(): List<SmsLogEntity>
 }

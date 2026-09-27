@@ -332,8 +332,11 @@ fun LogItemCard(
 ) {
     val isSuccess = log.status == "SUCCESS" || log.status == "SYNCED"
     val isUnpaired = log.status.contains("Not Paired", ignoreCase = true)
+    val isRetry = log.status.contains("RETRY", ignoreCase = true) || log.status.contains("QUEUE", ignoreCase = true)
     val statusColor = if (isSuccess) {
         ZeroGreenSuccess
+    } else if (isRetry) {
+        Color(0xFF0284C7)
     } else if (isUnpaired) {
         Color(0xFFD97706)
     } else if (log.status == "PAUSED" || log.status == "FILTERED") {
@@ -462,6 +465,7 @@ fun LogItemCard(
 fun StatusIndicatorDot(status: String) {
     val color = when {
         status == "SUCCESS" || status == "SYNCED" -> ZeroGreenSuccess
+        status.contains("RETRY", ignoreCase = true) || status.contains("QUEUE", ignoreCase = true) -> Color(0xFF0284C7)
         status.contains("Not Paired", ignoreCase = true) -> Color(0xFFD97706)
         status == "PAUSED" || status == "FILTERED" -> Color(0xFF64748B)
         else -> ZeroRedError

@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.zeropay.forwarder"
     minSdk = 24
     targetSdk = 36
-    versionCode = 17
-    versionName = "1.17.0"
+    versionCode = 18
+    versionName = "1.18.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
