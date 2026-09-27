@@ -72,9 +72,18 @@ class SecurePreferencesManager(private val context: Context) {
         _configState.value = ConfigData(webhookUrl.trim(), deviceToken.trim(), deviceId.trim())
     }
 
+    fun readLastScannedPayload(): String = securePrefs.getString(KEY_LAST_SCANNED_PAYLOAD, "").orEmpty()
+
+    fun saveLastScannedPayload(payload: String) {
+        securePrefs.edit().putString(KEY_LAST_SCANNED_PAYLOAD, payload.trim()).apply()
+    }
+
     fun parseAndSaveQrJson(qrJsonString: String): Result<ConfigData> {
+        val trimmedRaw = qrJsonString.trim()
+        saveLastScannedPayload(trimmedRaw)
+
         return try {
-            var raw = qrJsonString.trim()
+            var raw = trimmedRaw
 
             // Remove markdown code block fences if present (e.g. ```json ... ```)
             if (raw.startsWith("```")) {
@@ -82,7 +91,43 @@ class SecurePreferencesManager(private val context: Context) {
                 raw = lines.filterNot { it.trim().startsWith("```") }.joinToString("\n").trim()
             }
 
-            // Extract the outermost JSON object between '{' and '}'
+            // 1. Direct Webhook URL detection (e.g. https://... or http://...)
+            if (raw.startsWith("http://") || raw.startsWith("https://")) {
+                var url = raw
+                var tokenFromQuery = ""
+                var deviceIdFromQuery = ""
+                try {
+                    val uri = android.net.Uri.parse(raw)
+                    tokenFromQuery = uri.getQueryParameter("deviceToken")
+                        ?: uri.getQueryParameter("token")
+                        ?: uri.getQueryParameter("deviceSecret")
+                        ?: uri.getQueryParameter("secret")
+                        ?: uri.getQueryParameter("apiKey")
+                        ?: ""
+                    deviceIdFromQuery = uri.getQueryParameter("deviceId")
+                        ?: uri.getQueryParameter("id")
+                        ?: ""
+                    val query = uri.query
+                    if (!query.isNullOrBlank()) {
+                        url = "${uri.scheme}://${uri.authority}${uri.path ?: ""}"
+                    }
+                } catch (_: Exception) {}
+
+                val current = readConfig()
+                val finalToken = if (tokenFromQuery.isNotBlank()) tokenFromQuery else current.deviceToken
+                val finalDeviceId = if (deviceIdFromQuery.isNotBlank()) deviceIdFromQuery else (current.deviceId.ifBlank { "sim-gateway-01" })
+
+                saveConfig(url, finalToken, finalDeviceId)
+                return Result.success(ConfigData(url, finalToken, finalDeviceId))
+            }
+
+            // 2. Dynamic payment string (e.g. EMVCo Bangla QR 000201... or bkash:// or nagad://)
+            if (raw.startsWith("000201") || raw.contains("://") || raw.contains("payment") || raw.contains("amount")) {
+                val current = readConfig()
+                return Result.success(ConfigData(current.webhookUrl, current.deviceToken, current.deviceId))
+            }
+
+            // 3. Extract the outermost JSON object between '{' and '}'
             val firstBrace = raw.indexOf('{')
             val lastBrace = raw.lastIndexOf('}')
             val jsonCandidate = if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
@@ -266,6 +311,7 @@ class SecurePreferencesManager(private val context: Context) {
         private const val KEY_FORWARDING_ACTIVE = "forwarding_active"
         private const val KEY_WHITELIST_ENABLED = "whitelist_validation_enabled"
         private const val KEY_IGNORE_KEYWORDS = "ignore_keywords_list"
+        private const val KEY_LAST_SCANNED_PAYLOAD = "last_scanned_payload"
 
         val DEFAULT_SENDERS = PredefinedSenders.DEFAULT_ENABLED_IDS
 

@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
@@ -117,17 +118,27 @@ fun ScannerScreen(
     var manualJsonText by remember { mutableStateOf("") }
     var scannedSuccessConfig by remember { mutableStateOf<ConfigData?>(null) }
     var scanErrorMessage by remember { mutableStateOf<String?>(null) }
+    var isSuccessDetected by remember { mutableStateOf(false) }
+    var detectedPayloadText by remember { mutableStateOf("") }
 
     val qrAnalyzer = remember {
         QrCodeAnalyzer { rawScannedText ->
+            val cleanText = rawScannedText.trim()
             Handler(Looper.getMainLooper()).post {
-                val result = viewModel.onQrScanned(rawScannedText)
+                detectedPayloadText = cleanText
+                isSuccessDetected = true
+                val result = viewModel.onQrScanned(cleanText)
                 if (result.isSuccess) {
-                    onScanSuccess()
-                } else {
-                    scanErrorMessage = result.exceptionOrNull()?.message ?: "Invalid QR code format"
+                    scannedSuccessConfig = result.getOrNull()
                 }
             }
+        }
+    }
+
+    LaunchedEffect(isSuccessDetected) {
+        if (isSuccessDetected) {
+            kotlinx.coroutines.delay(750L)
+            onScanSuccess()
         }
     }
 
@@ -185,9 +196,11 @@ fun ScannerScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Scanning Overlay UI
+            // Scanning Overlay UI with Success State Feedback
             ScannerOverlay(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                isSuccess = isSuccessDetected,
+                detectedPayload = detectedPayloadText
             )
 
             // Top Bar Controls (Torch & Manual Paste)
@@ -468,7 +481,11 @@ fun ScannerScreen(
 }
 
 @Composable
-fun ScannerOverlay(modifier: Modifier = Modifier) {
+fun ScannerOverlay(
+    modifier: Modifier = Modifier,
+    isSuccess: Boolean = false,
+    detectedPayload: String = ""
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "scan_laser")
     val laserPosition by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -487,19 +504,73 @@ fun ScannerOverlay(modifier: Modifier = Modifier) {
         // Darkened surrounding background with square cutout in center
         Box(
             modifier = Modifier
-                .size(260.dp)
-                .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
-                .clip(RoundedCornerShape(24.dp))
-        ) {
-            // Animated Laser Line
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val y = size.height * laserPosition
-                drawLine(
-                    color = Color(0xFF38BDF8),
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 4f
+                .size(280.dp)
+                .border(
+                    width = if (isSuccess) 3.dp else 2.dp,
+                    color = if (isSuccess) Color(0xFF10B981) else Color.White.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(24.dp)
                 )
+                .clip(RoundedCornerShape(24.dp))
+                .background(if (isSuccess) Color(0xFF10B981).copy(alpha = 0.15f) else Color.Transparent)
+        ) {
+            if (!isSuccess) {
+                // Animated Laser Line
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val y = size.height * laserPosition
+                    drawLine(
+                        color = Color(0xFF38BDF8),
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 4f
+                    )
+                }
+            } else {
+                // Success Badge overlay inside the viewfinder
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF10B981),
+                        modifier = Modifier.size(54.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "QR DETECTED",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        letterSpacing = 1.sp
+                    )
+                    if (detectedPayload.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Black.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        ) {
+                            Text(
+                                text = detectedPayload.take(45) + (if (detectedPayload.length > 45) "..." else ""),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                color = Color(0xFF6EE7B7),
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Auto-connecting to Zero Pay...",
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
     }

@@ -111,6 +111,30 @@ fun SetupScreen(
         }
     }
 
+    // Auto-populate from any scanned QR code payload without requiring manual paste
+    val lastScannedPayload by viewModel.lastScannedPayload.collectAsState()
+    LaunchedEffect(lastScannedPayload) {
+        if (lastScannedPayload.isNotBlank()) {
+            val payload = lastScannedPayload.trim()
+            if (payload.startsWith("http://") || payload.startsWith("https://")) {
+                manualWebhookUrl = payload
+                isManualExpanded = true
+            } else if (payload.startsWith("{")) {
+                val current = viewModel.config.value
+                if (current.webhookUrl.isNotBlank()) {
+                    manualWebhookUrl = current.webhookUrl
+                    manualDeviceSecret = current.deviceToken
+                    manualDeviceId = current.deviceId
+                }
+            } else {
+                if (manualWebhookUrl.isNotBlank() && manualDeviceSecret.isBlank()) {
+                    manualDeviceSecret = payload
+                    isManualExpanded = true
+                }
+            }
+        }
+    }
+
     val scrollState = rememberScrollState()
 
     Column(

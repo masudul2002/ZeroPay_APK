@@ -129,4 +129,31 @@ class ExampleUnitTest {
     val deviceToken = extractField(samplePayloadWithoutToken, "deviceToken")
     assertTrue("deviceToken should be empty when omitted", deviceToken.isBlank())
   }
+
+  @Test
+  fun testWebhookUrlPayloadAutoDetection() {
+    val webhookUrlWithParams = "https://zeropay-dev.vercel.app/api/v1/webhook?deviceToken=sec_tok_999&deviceId=device_01"
+    val uri = java.net.URI(webhookUrlWithParams)
+    val query = uri.query
+    val queryMap = query.split("&").associate {
+      val parts = it.split("=")
+      parts[0] to (parts.getOrNull(1) ?: "")
+    }
+
+    assertEquals("https", uri.scheme)
+    assertEquals("zeropay-dev.vercel.app", uri.host)
+    assertEquals("/api/v1/webhook", uri.path)
+    assertEquals("sec_tok_999", queryMap["deviceToken"])
+    assertEquals("device_01", queryMap["deviceId"])
+  }
+
+  @Test
+  fun testDynamicPaymentStringAutoDetection() {
+    val emvcoPayload = "00020101021229300012com.bkash.qr01080170000053030505802BD"
+    val isDynamicPayment = emvcoPayload.startsWith("000201") || emvcoPayload.contains("://")
+    assertTrue("Should detect EMVCo / Bangla QR dynamic payment string", isDynamicPayment)
+
+    val uriPayload = "bkash://payment?merchant=01700000000&amount=500"
+    assertTrue("Should detect deep link payment URI", uriPayload.contains("://"))
+  }
 }

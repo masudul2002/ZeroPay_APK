@@ -36,6 +36,12 @@ class SmsRepository(
         return securePreferencesManager.parseAndSaveQrJson(qrJson)
     }
 
+    fun readLastScannedPayload(): String = securePreferencesManager.readLastScannedPayload()
+
+    fun saveLastScannedPayload(payload: String) {
+        securePreferencesManager.saveLastScannedPayload(payload)
+    }
+
     fun clearConfig() {
         securePreferencesManager.clearConfig()
     }

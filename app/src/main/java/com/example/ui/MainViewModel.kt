@@ -56,10 +56,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _lastError.value = null
     }
 
+    private val _lastScannedPayload = MutableStateFlow(repository.readLastScannedPayload())
+    val lastScannedPayload: StateFlow<String> = _lastScannedPayload.asStateFlow()
+
+    fun setScannedPayload(payload: String) {
+        val trimmed = payload.trim()
+        _lastScannedPayload.value = trimmed
+        repository.saveLastScannedPayload(trimmed)
+    }
+
+    fun clearScannedPayload() {
+        _lastScannedPayload.value = ""
+        repository.saveLastScannedPayload("")
+    }
+
     fun onQrScanned(rawJson: String): Result<ConfigData> {
-        val result = repository.parseAndSaveQrJson(rawJson)
+        val trimmed = rawJson.trim()
+        setScannedPayload(trimmed)
+        val result = repository.parseAndSaveQrJson(trimmed)
         if (result.isSuccess) {
-            _testStatus.value = "QR Code successfully configured!"
+            _testStatus.value = "QR Code successfully captured and configured!"
         }
         return result
     }
