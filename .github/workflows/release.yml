@@ -98,6 +98,8 @@ jobs:
           - **[Download ZeroPay APK](https://github.com/masudul2002/ZeroPay_APK/releases/download/${{ github.ref_name }}/ZeroPay-${{ github.ref_name }}.apk)**
 
           #### ⚡ Features & Updates:
+          - **Instant Handshake & Pairing Sync:** Instantly triggers an HTTP POST handshake on manual paste and QR code scanning to verify credentials before saving, ensuring the web dashboard flips to 'Paired' immediately.
+          - **Accurate Pairing Error Feedback:** Displays clear error feedback ("Invalid Token or Server Rejected Pairing") if the server rejects the token, preventing false connected states.
           - **Bypass False 'Not Paired' Blocking & Auto-Handshake:** Ensures captured payment SMS are never dropped due to desynchronized pairing flags, with automatic silent handshake and queued retry fallback.
           - **QR Auto-Connect & Pairing Sync Ping:** Fully compatible with Next.js web dashboard (`POST /api/v1/webhook`).
           - **Smart Transaction Filtering:** Automatically filters real financial transactions from bKash, Nagad, Rocket, BRACBANK, IBBL, etc., dropping OTPs and promotional spam.

@@ -89,6 +89,11 @@ import com.example.ui.MainViewModel
 import com.example.ui.theme.ZeroBlueLight
 import com.example.ui.theme.ZeroGreenSuccess
 import com.example.util.QrCodeAnalyzer
+import android.widget.Toast
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.example.data.network.DispatchResult
 import java.util.concurrent.Executors
 
 @Composable
@@ -99,6 +104,7 @@ fun ScannerScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -119,27 +125,47 @@ fun ScannerScreen(
     var scannedSuccessConfig by remember { mutableStateOf<ConfigData?>(null) }
     var scanErrorMessage by remember { mutableStateOf<String?>(null) }
     var isSuccessDetected by remember { mutableStateOf(false) }
+    var isVerifying by remember { mutableStateOf(false) }
     var detectedPayloadText by remember { mutableStateOf("") }
 
     val qrAnalyzer = remember {
-        QrCodeAnalyzer { rawScannedText ->
+        var analyzerInstance: QrCodeAnalyzer? = null
+        val analyzer = QrCodeAnalyzer { rawScannedText ->
             val cleanText = rawScannedText.trim()
-            Handler(Looper.getMainLooper()).post {
-                detectedPayloadText = cleanText
-                isSuccessDetected = true
-                val result = viewModel.onQrScanned(cleanText)
-                if (result.isSuccess) {
-                    scannedSuccessConfig = result.getOrNull()
+            if (!isVerifying && !isSuccessDetected) {
+                Handler(Looper.getMainLooper()).post {
+                    if (isVerifying || isSuccessDetected) return@post
+                    detectedPayloadText = cleanText
+                    isVerifying = true
+                    analyzerInstance?.setScanningEnabled(false)
+
+                    scope.launch {
+                        val result = viewModel.connectAndHandshakePayload(cleanText)
+                        isVerifying = false
+                        when (result) {
+                            is DispatchResult.Success -> {
+                                isSuccessDetected = true
+                                Toast.makeText(context, "Connected & Paired successfully!", Toast.LENGTH_SHORT).show()
+                                kotlinx.coroutines.delay(750L)
+                                onScanSuccess()
+                            }
+                            is DispatchResult.Failure -> {
+                                val toastMsg = if (result.errorMessage.contains("Invalid Token", ignoreCase = true) || result.code in listOf(400, 401, 403, 404)) {
+                                    "Invalid Token or Server Rejected Pairing"
+                                } else {
+                                    result.errorMessage
+                                }
+                                Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
+                                scanErrorMessage = toastMsg
+                                analyzerInstance?.setScanningEnabled(true)
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-
-    LaunchedEffect(isSuccessDetected) {
-        if (isSuccessDetected) {
-            kotlinx.coroutines.delay(750L)
-            onScanSuccess()
-        }
+        analyzerInstance = analyzer
+        analyzer
     }
 
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
@@ -200,6 +226,7 @@ fun ScannerScreen(
             ScannerOverlay(
                 modifier = Modifier.fillMaxSize(),
                 isSuccess = isSuccessDetected,
+                isVerifying = isVerifying,
                 detectedPayload = detectedPayloadText
             )
 
@@ -456,19 +483,46 @@ fun ScannerScreen(
                 }
             },
             confirmButton = {
+                var isSubmittingManual by remember { mutableStateOf(false) }
                 Button(
                     onClick = {
-                        val result = viewModel.onQrScanned(manualJsonText)
-                        if (result.isSuccess) {
-                            showManualInputDialog = false
-                            onScanSuccess()
-                        } else {
-                            scanErrorMessage = result.exceptionOrNull()?.message ?: "Failed to parse JSON"
+                        val text = manualJsonText.trim()
+                        if (text.isBlank()) {
+                            scanErrorMessage = "Please enter setup JSON"
+                            return@Button
+                        }
+                        isSubmittingManual = true
+                        scope.launch {
+                            val result = viewModel.connectAndHandshakePayload(text)
+                            isSubmittingManual = false
+                            when (result) {
+                                is DispatchResult.Success -> {
+                                    Toast.makeText(context, "Connected & Paired successfully!", Toast.LENGTH_SHORT).show()
+                                    showManualInputDialog = false
+                                    onScanSuccess()
+                                }
+                                is DispatchResult.Failure -> {
+                                    val toastMsg = if (result.errorMessage.contains("Invalid Token", ignoreCase = true) || result.code in listOf(400, 401, 403, 404)) {
+                                        "Invalid Token or Server Rejected Pairing"
+                                    } else {
+                                        result.errorMessage
+                                    }
+                                    Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
+                                    scanErrorMessage = toastMsg
+                                }
+                            }
                         }
                     },
+                    enabled = !isSubmittingManual,
                     modifier = Modifier.testTag("submit_manual_json_button")
                 ) {
-                    Text("Save & Connect")
+                    if (isSubmittingManual) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Verifying...")
+                    } else {
+                        Text("Save & Connect")
+                    }
                 }
             },
             dismissButton = {
@@ -484,6 +538,7 @@ fun ScannerScreen(
 fun ScannerOverlay(
     modifier: Modifier = Modifier,
     isSuccess: Boolean = false,
+    isVerifying: Boolean = false,
     detectedPayload: String = ""
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "scan_laser")
@@ -507,13 +562,41 @@ fun ScannerOverlay(
                 .size(280.dp)
                 .border(
                     width = if (isSuccess) 3.dp else 2.dp,
-                    color = if (isSuccess) Color(0xFF10B981) else Color.White.copy(alpha = 0.6f),
+                    color = if (isSuccess) Color(0xFF10B981) else if (isVerifying) Color(0xFF38BDF8) else Color.White.copy(alpha = 0.6f),
                     shape = RoundedCornerShape(24.dp)
                 )
                 .clip(RoundedCornerShape(24.dp))
-                .background(if (isSuccess) Color(0xFF10B981).copy(alpha = 0.15f) else Color.Transparent)
+                .background(if (isSuccess) Color(0xFF10B981).copy(alpha = 0.15f) else if (isVerifying) Color(0xFF38BDF8).copy(alpha = 0.12f) else Color.Transparent)
         ) {
-            if (!isSuccess) {
+            if (isVerifying) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = Color(0xFF38BDF8),
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "VERIFYING PAIRING...",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Validating token with Zero Pay...",
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 11.sp
+                    )
+                }
+            } else if (!isSuccess) {
                 // Animated Laser Line
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val y = size.height * laserPosition
@@ -541,7 +624,7 @@ fun ScannerOverlay(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "QR DETECTED",
+                        text = "PAIRED & CONNECTED",
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         fontSize = 15.sp,
@@ -566,7 +649,7 @@ fun ScannerOverlay(
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Auto-connecting to Zero Pay...",
+                        text = "Redirecting to Dashboard...",
                         color = Color(0xFFE2E8F0),
                         fontSize = 11.sp
                     )

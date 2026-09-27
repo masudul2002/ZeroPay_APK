@@ -70,6 +70,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.filled.Security
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.example.data.network.DispatchResult
 import com.example.R
 import com.example.ui.MainViewModel
 import com.example.ui.permission.SmsPermissionRationaleDialog
@@ -83,8 +88,13 @@ fun SetupScreen(
     onNavigateToScanner: () -> Unit,
     onSetupComplete: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     val config by viewModel.config.collectAsState()
     val isTesting by viewModel.isTesting.collectAsState()
+    val isConnecting by viewModel.isConnecting.collectAsState()
+    val connectionError by viewModel.connectionError.collectAsState()
     val testStatus by viewModel.testStatus.collectAsState()
     val lastError by viewModel.lastError.collectAsState()
 
@@ -102,13 +112,6 @@ fun SetupScreen(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { perms ->
         permissionState.handlePermissionResult(perms)
-    }
-
-    // If config becomes configured, automatically route to dashboard
-    LaunchedEffect(config.isConfigured) {
-        if (config.isConfigured) {
-            onSetupComplete()
-        }
     }
 
     // Auto-populate from any scanned QR code payload without requiring manual paste
@@ -547,17 +550,42 @@ fun SetupScreen(
                                         return@Button
                                     }
 
-                                    viewModel.saveConfigManual(url, secret, devId)
-                                    onSetupComplete()
+                                    validationError = null
+                                    viewModel.clearConnectionError()
+                                    scope.launch {
+                                        val result = viewModel.connectAndHandshake(url, secret, devId)
+                                        when (result) {
+                                            is DispatchResult.Success -> {
+                                                Toast.makeText(context, "Connected & Paired successfully!", Toast.LENGTH_SHORT).show()
+                                                onSetupComplete()
+                                            }
+                                            is DispatchResult.Failure -> {
+                                                val toastMsg = if (result.errorMessage.contains("Invalid Token", ignoreCase = true) || result.code in listOf(400, 401, 403, 404)) {
+                                                    "Invalid Token or Server Rejected Pairing"
+                                                } else {
+                                                    result.errorMessage
+                                                }
+                                                Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
+                                                validationError = toastMsg
+                                            }
+                                        }
+                                    }
                                 },
+                                enabled = !isConnecting && !isTesting,
                                 modifier = Modifier
                                     .weight(1.3f)
                                     .testTag("save_config_button"),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Save & Connect")
+                                if (isConnecting) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Connecting...")
+                                } else {
+                                    Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Save & Connect")
+                                }
                             }
                         }
                     }
@@ -624,10 +652,13 @@ fun SetupScreen(
 
     if (showPasteJsonDialog) {
         var localError by remember { mutableStateOf<String?>(null) }
+        var isSubmittingPaste by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = {
-                showPasteJsonDialog = false
-                localError = null
+                if (!isSubmittingPaste) {
+                    showPasteJsonDialog = false
+                    localError = null
+                }
             },
             title = { Text("Paste Setup JSON") },
             text = {
@@ -665,17 +696,44 @@ fun SetupScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val result = viewModel.onQrScanned(pasteJsonInput)
-                        if (result.isSuccess) {
-                            showPasteJsonDialog = false
-                            onSetupComplete()
-                        } else {
-                            localError = result.exceptionOrNull()?.message ?: "Invalid JSON format"
+                        val input = pasteJsonInput.trim()
+                        if (input.isBlank()) {
+                            localError = "Please paste a valid JSON string"
+                            return@Button
+                        }
+                        isSubmittingPaste = true
+                        localError = null
+                        scope.launch {
+                            val result = viewModel.connectAndHandshakePayload(input)
+                            isSubmittingPaste = false
+                            when (result) {
+                                is DispatchResult.Success -> {
+                                    Toast.makeText(context, "Connected & Paired successfully!", Toast.LENGTH_SHORT).show()
+                                    showPasteJsonDialog = false
+                                    onSetupComplete()
+                                }
+                                is DispatchResult.Failure -> {
+                                    val toastMsg = if (result.errorMessage.contains("Invalid Token", ignoreCase = true) || result.code in listOf(400, 401, 403, 404)) {
+                                        "Invalid Token or Server Rejected Pairing"
+                                    } else {
+                                        result.errorMessage
+                                    }
+                                    Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
+                                    localError = toastMsg
+                                }
+                            }
                         }
                     },
+                    enabled = !isSubmittingPaste,
                     modifier = Modifier.testTag("submit_paste_json_button")
                 ) {
-                    Text("Save & Connect")
+                    if (isSubmittingPaste) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Verifying...")
+                    } else {
+                        Text("Save & Connect")
+                    }
                 }
             },
             dismissButton = {
@@ -683,7 +741,8 @@ fun SetupScreen(
                     onClick = {
                         showPasteJsonDialog = false
                         localError = null
-                    }
+                    },
+                    enabled = !isSubmittingPaste
                 ) {
                     Text("Cancel")
                 }

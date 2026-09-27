@@ -40,6 +40,69 @@ class SmsRepository(
         return securePreferencesManager.parseAndSaveQrJson(qrJson)
     }
 
+    fun parseQrPayload(rawPayload: String): Result<ConfigData> {
+        return securePreferencesManager.parseQrJson(rawPayload)
+    }
+
+    suspend fun verifyAndConnect(
+        webhookUrl: String,
+        deviceToken: String,
+        deviceId: String = ""
+    ): DispatchResult {
+        val trimmedUrl = webhookUrl.trim()
+        val trimmedToken = deviceToken.trim()
+        val trimmedDeviceId = deviceId.trim().ifBlank { "sim-gateway-01" }
+
+        if (trimmedUrl.isBlank()) {
+            return DispatchResult.Failure(code = null, errorMessage = "Webhook URL cannot be empty")
+        }
+        if (trimmedToken.isBlank()) {
+            return DispatchResult.Failure(code = null, errorMessage = "Device Token cannot be empty")
+        }
+
+        val testConfig = ConfigData(
+            webhookUrl = trimmedUrl,
+            deviceToken = trimmedToken,
+            deviceId = trimmedDeviceId
+        )
+
+        Log.d(TAG, "Triggering immediate handshake to ${testConfig.webhookUrl} with device ${testConfig.effectiveDeviceId}...")
+        val handshakeResult = webhookDispatcher.testConnection(testConfig)
+
+        return when (handshakeResult) {
+            is DispatchResult.Success -> {
+                Log.d(TAG, "Handshake successful with HTTP ${handshakeResult.code}. Persisting verified configuration.")
+                saveConfig(trimmedUrl, trimmedToken, trimmedDeviceId)
+                handshakeResult
+            }
+            is DispatchResult.Failure -> {
+                Log.w(TAG, "Handshake rejected or failed: ${handshakeResult.errorMessage} (code: ${handshakeResult.code})")
+                val formattedMsg = if (handshakeResult.code in listOf(400, 401, 403, 404)) {
+                    "Invalid Token or Server Rejected Pairing"
+                } else {
+                    handshakeResult.errorMessage
+                }
+                DispatchResult.Failure(code = handshakeResult.code, errorMessage = formattedMsg)
+            }
+        }
+    }
+
+    suspend fun verifyAndConnectPayload(rawPayload: String): DispatchResult {
+        val parseResult = securePreferencesManager.parseQrJson(rawPayload)
+        if (parseResult.isFailure) {
+            return DispatchResult.Failure(
+                code = null,
+                errorMessage = parseResult.exceptionOrNull()?.message ?: "Invalid QR/JSON format"
+            )
+        }
+        val config = parseResult.getOrThrow()
+        return verifyAndConnect(
+            webhookUrl = config.webhookUrl,
+            deviceToken = config.deviceToken,
+            deviceId = config.deviceId
+        )
+    }
+
     fun readLastScannedPayload(): String = securePreferencesManager.readLastScannedPayload()
 
     fun saveLastScannedPayload(payload: String) {

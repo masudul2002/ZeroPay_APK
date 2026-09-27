@@ -51,11 +51,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isTesting = MutableStateFlow(false)
     val isTesting: StateFlow<Boolean> = _isTesting.asStateFlow()
 
+    private val _isConnecting = MutableStateFlow(false)
+    val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()
+
+    private val _connectionError = MutableStateFlow<String?>(null)
+    val connectionError: StateFlow<String?> = _connectionError.asStateFlow()
+
+    fun clearConnectionError() {
+        _connectionError.value = null
+    }
+
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
     fun clearLastError() {
         _lastError.value = null
+        _connectionError.value = null
     }
 
     private val _lastScannedPayload = MutableStateFlow(repository.readLastScannedPayload())
@@ -80,6 +91,74 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _testStatus.value = "QR Code successfully captured and configured!"
         }
         return result
+    }
+
+    suspend fun connectAndHandshake(
+        webhookUrl: String,
+        deviceToken: String,
+        deviceId: String
+    ): DispatchResult {
+        _isConnecting.value = true
+        _connectionError.value = null
+        _testStatus.value = "Verifying pairing with server..."
+        try {
+            val result = repository.verifyAndConnect(webhookUrl, deviceToken, deviceId)
+            when (result) {
+                is DispatchResult.Success -> {
+                    _testStatus.value = "Paired successfully with Zero Pay! (HTTP ${result.code})"
+                    _lastError.value = null
+                    _connectionError.value = null
+                }
+                is DispatchResult.Failure -> {
+                    val errorMsg = result.errorMessage
+                    _testStatus.value = errorMsg
+                    _lastError.value = errorMsg
+                    _connectionError.value = errorMsg
+                }
+            }
+            return result
+        } catch (e: Exception) {
+            val errorMsg = e.localizedMessage ?: "Connection error"
+            _testStatus.value = errorMsg
+            _lastError.value = errorMsg
+            _connectionError.value = errorMsg
+            return DispatchResult.Failure(code = null, errorMessage = errorMsg)
+        } finally {
+            _isConnecting.value = false
+        }
+    }
+
+    suspend fun connectAndHandshakePayload(rawPayload: String): DispatchResult {
+        val trimmed = rawPayload.trim()
+        setScannedPayload(trimmed)
+        _isConnecting.value = true
+        _connectionError.value = null
+        _testStatus.value = "Verifying pairing with server..."
+        try {
+            val result = repository.verifyAndConnectPayload(trimmed)
+            when (result) {
+                is DispatchResult.Success -> {
+                    _testStatus.value = "Paired successfully with Zero Pay! (HTTP ${result.code})"
+                    _lastError.value = null
+                    _connectionError.value = null
+                }
+                is DispatchResult.Failure -> {
+                    val errorMsg = result.errorMessage
+                    _testStatus.value = errorMsg
+                    _lastError.value = errorMsg
+                    _connectionError.value = errorMsg
+                }
+            }
+            return result
+        } catch (e: Exception) {
+            val errorMsg = e.localizedMessage ?: "Connection error"
+            _testStatus.value = errorMsg
+            _lastError.value = errorMsg
+            _connectionError.value = errorMsg
+            return DispatchResult.Failure(code = null, errorMessage = errorMsg)
+        } finally {
+            _isConnecting.value = false
+        }
     }
 
     fun saveConfigManual(webhookUrl: String, deviceToken: String, deviceId: String) {

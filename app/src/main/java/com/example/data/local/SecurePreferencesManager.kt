@@ -89,10 +89,8 @@ class SecurePreferencesManager(private val context: Context) {
         securePrefs.edit().putString(KEY_LAST_SCANNED_PAYLOAD, payload.trim()).apply()
     }
 
-    fun parseAndSaveQrJson(qrJsonString: String): Result<ConfigData> {
+    fun parseQrJson(qrJsonString: String): Result<ConfigData> {
         val trimmedRaw = qrJsonString.trim()
-        saveLastScannedPayload(trimmedRaw)
-
         return try {
             var raw = trimmedRaw
 
@@ -128,7 +126,6 @@ class SecurePreferencesManager(private val context: Context) {
                 val finalToken = if (tokenFromQuery.isNotBlank()) tokenFromQuery else current.deviceToken
                 val finalDeviceId = if (deviceIdFromQuery.isNotBlank()) deviceIdFromQuery else (current.deviceId.ifBlank { "sim-gateway-01" })
 
-                saveConfig(url, finalToken, finalDeviceId)
                 return Result.success(ConfigData(url, finalToken, finalDeviceId))
             }
 
@@ -189,12 +186,22 @@ class SecurePreferencesManager(private val context: Context) {
                 return Result.failure(IllegalArgumentException("Missing or empty 'deviceToken' in configuration"))
             }
 
-            saveConfig(webhookUrl, deviceToken, deviceId)
             Result.success(ConfigData(webhookUrl, deviceToken, deviceId))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse QR JSON: ${e.message}", e)
             Result.failure(IllegalArgumentException("Invalid JSON format: ${e.localizedMessage ?: "Unable to parse credentials"}"))
         }
+    }
+
+    fun parseAndSaveQrJson(qrJsonString: String): Result<ConfigData> {
+        val trimmedRaw = qrJsonString.trim()
+        saveLastScannedPayload(trimmedRaw)
+        val parseResult = parseQrJson(trimmedRaw)
+        if (parseResult.isSuccess) {
+            val config = parseResult.getOrThrow()
+            saveConfig(config.webhookUrl, config.deviceToken, config.deviceId)
+        }
+        return parseResult
     }
 
     fun clearConfig() {
