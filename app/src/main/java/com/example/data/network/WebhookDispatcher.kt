@@ -23,9 +23,10 @@ sealed class DispatchResult {
 
 class WebhookDispatcher(
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(45, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 ) {
 

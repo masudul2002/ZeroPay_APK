@@ -33,4 +33,10 @@ interface SmsLogDao {
 
     @Query("DELETE FROM sms_logs WHERE createdAtMillis < :cutoffMillis")
     suspend fun deleteLogsOlderThan(cutoffMillis: Long): Int
+
+    @Query("UPDATE sms_logs SET status = :status, httpCode = :httpCode, errorMessage = :errorMessage WHERE id = :id")
+    suspend fun updateLogStatus(id: Long, status: String, httpCode: Int?, errorMessage: String?)
+
+    @Query("SELECT * FROM sms_logs WHERE status LIKE '%FAIL%' ORDER BY createdAtMillis ASC")
+    suspend fun getFailedLogsList(): List<SmsLogEntity>
 }

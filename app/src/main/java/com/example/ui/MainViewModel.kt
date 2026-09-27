@@ -217,4 +217,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.deleteLog(id)
         }
     }
+
+    fun retryLog(log: SmsLogEntity) {
+        viewModelScope.launch {
+            _testStatus.value = "Retrying webhook dispatch..."
+            try {
+                when (val result = repository.retryLog(log)) {
+                    is DispatchResult.Success -> {
+                        _testStatus.value = "Retried successfully! (HTTP ${result.code})"
+                        _lastError.value = null
+                    }
+                    is DispatchResult.Failure -> {
+                        val errMsg = "Retry failed: ${result.errorMessage ?: "Unknown error"}${result.code?.let { " (HTTP $it)" } ?: ""}"
+                        _testStatus.value = errMsg
+                        _lastError.value = errMsg
+                    }
+                }
+            } catch (e: Exception) {
+                val errMsg = "Retry error: ${e.message}"
+                _testStatus.value = errMsg
+                _lastError.value = errMsg
+            }
+        }
+    }
+
+    fun retryAllFailed() {
+        viewModelScope.launch {
+            _testStatus.value = "Retrying all failed dispatches..."
+            try {
+                val count = repository.retryAllFailed()
+                _testStatus.value = "Retried failed logs. $count succeeded."
+            } catch (e: Exception) {
+                _testStatus.value = "Retry all error: ${e.message}"
+            }
+        }
+    }
 }

@@ -230,7 +230,7 @@ fun ForwardScreen(viewModel: MainViewModel) {
                         isSuccessTab = selectedTabIndex == 0,
                         onViewPayload = { selectedLogForDialog = log },
                         onRetry = {
-                            viewModel.sendTestWebhook()
+                            viewModel.retryLog(log)
                             Toast.makeText(context, "Retrying webhook dispatch...", Toast.LENGTH_SHORT).show()
                         }
                     )

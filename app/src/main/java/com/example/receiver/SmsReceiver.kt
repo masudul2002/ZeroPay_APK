@@ -75,7 +75,7 @@ class SmsReceiver : BroadcastReceiver() {
             PowerManager.PARTIAL_WAKE_LOCK,
             "ZeroPay:SmsDispatchWakeLock"
         )
-        wakeLock?.acquire(15_000L) // 15 seconds max
+        wakeLock?.acquire(60_000L) // 60 seconds max to accommodate network timeouts
 
         CoroutineScope(Dispatchers.IO).launch {
             try {

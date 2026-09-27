@@ -241,6 +241,44 @@ class SmsRepository(
         return result
     }
 
+    suspend fun retryLog(log: SmsLogEntity): DispatchResult {
+        val config = securePreferencesManager.readConfig()
+        if (!config.isConfigured) {
+            return DispatchResult.Failure(code = null, errorMessage = "Zero Pay webhook not configured yet")
+        }
+
+        val result = webhookDispatcher.dispatchSms(
+            config = config,
+            sender = log.sender,
+            messageBody = log.messageBody,
+            simSlot = log.simSlot,
+            isoTimestamp = log.timestamp
+        )
+
+        when (result) {
+            is DispatchResult.Success -> {
+                database.smsLogDao().updateLogStatus(log.id, "SUCCESS", result.code, null)
+            }
+            is DispatchResult.Failure -> {
+                database.smsLogDao().updateLogStatus(log.id, "FAILED", result.code, result.errorMessage)
+            }
+        }
+
+        return result
+    }
+
+    suspend fun retryAllFailed(): Int {
+        val failed = database.smsLogDao().getFailedLogsList()
+        var successCount = 0
+        for (log in failed) {
+            val res = retryLog(log)
+            if (res is DispatchResult.Success) {
+                successCount++
+            }
+        }
+        return successCount
+    }
+
     companion object {
         private const val TAG = "ZeroPaySmsRepository"
 
