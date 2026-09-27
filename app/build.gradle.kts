@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.zeropay.forwarder"
     minSdk = 24
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.0.2"
+    versionCode = 17
+    versionName = "1.17.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -25,10 +25,13 @@ android {
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val releaseKeystore = file(keystorePath)
+      val debugKeystore = file("${rootDir}/debug.keystore")
+      val hasReleaseKeystore = releaseKeystore.exists() && System.getenv("STORE_PASSWORD") != null
+      storeFile = if (hasReleaseKeystore) releaseKeystore else debugKeystore
+      storePassword = if (hasReleaseKeystore) System.getenv("STORE_PASSWORD") else "android"
+      keyAlias = if (hasReleaseKeystore) (System.getenv("KEY_ALIAS") ?: "upload") else "androiddebugkey"
+      keyPassword = if (hasReleaseKeystore) System.getenv("KEY_PASSWORD") else "android"
     }
     create("debugConfig") {
       val rootKeystore = file("${rootDir}/debug.keystore")

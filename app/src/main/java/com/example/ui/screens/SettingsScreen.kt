@@ -198,7 +198,7 @@ fun SettingsScreen(
                                 }
                             }
                             Text(
-                                text = "Zero Pay Gateway Client v1.0",
+                                text = "Zero Pay Gateway Client v${com.example.BuildConfig.VERSION_NAME}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
