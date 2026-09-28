@@ -119,16 +119,16 @@ fun SetupScreen(
     LaunchedEffect(lastScannedPayload) {
         if (lastScannedPayload.isNotBlank()) {
             val payload = lastScannedPayload.trim()
-            if (payload.startsWith("http://") || payload.startsWith("https://")) {
+            val parsedResult = viewModel.parsePayload(payload)
+            if (parsedResult.isSuccess) {
+                val data = parsedResult.getOrThrow()
+                manualWebhookUrl = data.webhookUrl
+                manualDeviceSecret = data.deviceToken
+                manualDeviceId = data.deviceId
+                isManualExpanded = true
+            } else if (payload.startsWith("http://") || payload.startsWith("https://")) {
                 manualWebhookUrl = payload
                 isManualExpanded = true
-            } else if (payload.startsWith("{")) {
-                val current = viewModel.config.value
-                if (current.webhookUrl.isNotBlank()) {
-                    manualWebhookUrl = current.webhookUrl
-                    manualDeviceSecret = current.deviceToken
-                    manualDeviceId = current.deviceId
-                }
             } else {
                 if (manualWebhookUrl.isNotBlank() && manualDeviceSecret.isBlank()) {
                     manualDeviceSecret = payload
@@ -430,8 +430,9 @@ fun SetupScreen(
                         OutlinedTextField(
                             value = manualWebhookUrl,
                             onValueChange = { input ->
-                                if (input.contains("{") && (input.contains("webhook") || input.contains("device"))) {
-                                    val result = viewModel.onQrScanned(input)
+                                val trimmed = input.trim()
+                                if (trimmed.contains("{") || trimmed.contains("webhookUrl") || trimmed.contains("deviceToken") || trimmed.contains("dev_")) {
+                                    val result = viewModel.parsePayload(trimmed)
                                     if (result.isSuccess) {
                                         val parsed = result.getOrNull()
                                         if (parsed != null) {
@@ -439,7 +440,6 @@ fun SetupScreen(
                                             manualDeviceSecret = parsed.deviceToken
                                             manualDeviceId = parsed.deviceId
                                             validationError = null
-                                            onSetupComplete()
                                             return@OutlinedTextField
                                         }
                                     }
@@ -533,9 +533,23 @@ fun SetupScreen(
 
                             Button(
                                 onClick = {
-                                    val url = manualWebhookUrl.trim()
-                                    val secret = manualDeviceSecret.trim()
-                                    val devId = manualDeviceId.trim().ifBlank { "sim-gateway-01" }
+                                    var url = manualWebhookUrl.trim()
+                                    var secret = manualDeviceSecret.trim()
+                                    var devId = manualDeviceId.trim().ifBlank { "sim-gateway-01" }
+
+                                    // If user pasted raw JSON into the webhook URL field, auto-extract credentials
+                                    if (url.contains("{") || url.contains("webhookUrl") || url.contains("deviceToken") || url.contains("dev_")) {
+                                        val parsed = viewModel.parsePayload(url)
+                                        if (parsed.isSuccess) {
+                                            val data = parsed.getOrThrow()
+                                            url = data.webhookUrl
+                                            if (secret.isBlank()) secret = data.deviceToken
+                                            if (devId == "sim-gateway-01" || devId.isBlank()) devId = data.deviceId
+                                            manualWebhookUrl = url
+                                            manualDeviceSecret = secret
+                                            manualDeviceId = devId
+                                        }
+                                    }
 
                                     if (url.isBlank()) {
                                         validationError = "Webhook URL is required"

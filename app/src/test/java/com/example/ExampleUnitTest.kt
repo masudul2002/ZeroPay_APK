@@ -328,4 +328,62 @@ class ExampleUnitTest {
     assertEquals("tok_abc", config.deviceSecret)
     assertEquals("tok_abc", config.deviceToken)
   }
+
+  @Test
+  fun testInfallibleQrAndJsonPayloadParsing() {
+    // 1. Standard configuration JSON matching the production/dev zero pay format
+    val standardJson = """
+      {"webhookUrl":"https://zeropay-dev.vercel.app/api/v1/webhook","deviceId":"dev_ec7afd5636d8a76c","deviceToken":"sec_live_mock_token_123"}
+    """.trimIndent()
+    val res1 = com.example.util.QrCodeAnalyzer.parseConfigurationPayload(standardJson)
+    assertTrue("Standard JSON must parse successfully", res1.isSuccess)
+    val config1 = res1.getOrThrow()
+    assertEquals("https://zeropay-dev.vercel.app/api/v1/webhook", config1.webhookUrl)
+    assertEquals("dev_ec7afd5636d8a76c", config1.deviceId)
+    assertEquals("sec_live_mock_token_123", config1.deviceToken)
+
+    // 2. Escaped JSON string
+    val escapedJson = "\"{\\\"webhookUrl\\\":\\\"https://zeropay-dev.vercel.app/api/v1/webhook\\\",\\\"deviceId\\\":\\\"dev_ec7afd5636d8a76c\\\",\\\"deviceToken\\\":\\\"sec_live_mock_token_123\\\"}\""
+    val res2 = com.example.util.QrCodeAnalyzer.parseConfigurationPayload(escapedJson)
+    assertTrue("Escaped JSON must parse successfully", res2.isSuccess)
+    val config2 = res2.getOrThrow()
+    assertEquals("https://zeropay-dev.vercel.app/api/v1/webhook", config2.webhookUrl)
+    assertEquals("dev_ec7afd5636d8a76c", config2.deviceId)
+    assertEquals("sec_live_mock_token_123", config2.deviceToken)
+
+    // 3. Markdown code-fenced JSON
+    val markdownJson = """
+      ```json
+      {
+        "webhook_url": "https://zeropay-dev.vercel.app/api/v1/webhook",
+        "device_id": "dev_ec7afd5636d8a76c",
+        "device_token": "sec_live_mock_token_123"
+      }
+      ```
+    """.trimIndent()
+    val res3 = com.example.util.QrCodeAnalyzer.parseConfigurationPayload(markdownJson)
+    assertTrue("Markdown JSON must parse successfully", res3.isSuccess)
+    val config3 = res3.getOrThrow()
+    assertEquals("https://zeropay-dev.vercel.app/api/v1/webhook", config3.webhookUrl)
+    assertEquals("dev_ec7afd5636d8a76c", config3.deviceId)
+    assertEquals("sec_live_mock_token_123", config3.deviceToken)
+
+    // 4. URL with query parameters
+    val urlWithQuery = "https://zeropay-dev.vercel.app/api/v1/webhook?deviceToken=sec_live_mock_token_123&deviceId=dev_ec7afd5636d8a76c"
+    val res4 = com.example.util.QrCodeAnalyzer.parseConfigurationPayload(urlWithQuery)
+    assertTrue("URL with query parameters must parse successfully", res4.isSuccess)
+    val config4 = res4.getOrThrow()
+    assertEquals("https://zeropay-dev.vercel.app/api/v1/webhook", config4.webhookUrl)
+    assertEquals("dev_ec7afd5636d8a76c", config4.deviceId)
+    assertEquals("sec_live_mock_token_123", config4.deviceToken)
+
+    // 5. Malformed JSON with trailing comma (rescued by Regex fallback)
+    val malformedJson = "{ webhookUrl: 'https://zeropay-dev.vercel.app/api/v1/webhook', deviceId: 'dev_ec7afd5636d8a76c', deviceToken: 'sec_live_mock_token_123', }"
+    val res5 = com.example.util.QrCodeAnalyzer.parseConfigurationPayload(malformedJson)
+    assertTrue("Malformed JSON with trailing comma must parse via regex fallback", res5.isSuccess)
+    val config5 = res5.getOrThrow()
+    assertEquals("https://zeropay-dev.vercel.app/api/v1/webhook", config5.webhookUrl)
+    assertEquals("dev_ec7afd5636d8a76c", config5.deviceId)
+    assertEquals("sec_live_mock_token_123", config5.deviceToken)
+  }
 }

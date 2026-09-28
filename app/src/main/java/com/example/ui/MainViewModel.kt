@@ -83,6 +83,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.saveLastScannedPayload("")
     }
 
+    fun parsePayload(payload: String): Result<ConfigData> {
+        return repository.parseQrPayload(payload)
+    }
+
     fun onQrScanned(rawJson: String): Result<ConfigData> {
         val trimmed = rawJson.trim()
         setScannedPayload(trimmed)
