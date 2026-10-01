@@ -27,5 +27,9 @@ debug.keystore
 !gradlew
 !gradlew.bat
 
-# Generated release APKs
-release/ZeroPay-v1.1*
+# Generated release APKs and AABs
+release/ZeroPay-v*
+release/*.apk
+release/*.aab
+!release/ZeroPay-v1.0.0.apk
+!release/ZeroPay-SMS-Forwarder-v1.0.0.apk
