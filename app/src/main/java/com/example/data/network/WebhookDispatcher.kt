@@ -41,8 +41,9 @@ class WebhookDispatcher(
     ): DispatchResult = withContext(Dispatchers.IO) {
         val effectiveToken = config.deviceToken.ifBlank { config.deviceSecret }.trim()
         val effectiveDeviceId = config.effectiveDeviceId
+        val targetUrl = config.effectiveWebhookUrl
 
-        if (config.webhookUrl.isBlank()) {
+        if (targetUrl.isBlank()) {
             return@withContext DispatchResult.Failure(
                 code = null,
                 errorMessage = "Missing webhook URL"
@@ -86,13 +87,13 @@ class WebhookDispatcher(
             }
 
             val jsonString = jsonObject.toString()
-            Log.d(TAG, "Dispatching to ${config.webhookUrl}: $jsonString")
+            Log.d(TAG, "Dispatching to $targetUrl: $jsonString")
 
             val mediaType = "application/json; charset=utf-8".toMediaType()
             val requestBody = jsonString.toRequestBody(mediaType)
 
             val request = Request.Builder()
-                .url(config.webhookUrl)
+                .url(targetUrl)
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Authorization", "Bearer $effectiveToken")
                 .post(requestBody)
@@ -123,8 +124,9 @@ class WebhookDispatcher(
     suspend fun testConnection(config: ConfigData): DispatchResult = withContext(Dispatchers.IO) {
         val effectiveToken = config.deviceToken.ifBlank { config.deviceSecret }.trim()
         val effectiveDeviceId = config.effectiveDeviceId
+        val targetUrl = config.effectiveWebhookUrl
 
-        if (config.webhookUrl.isBlank()) {
+        if (targetUrl.isBlank()) {
             return@withContext DispatchResult.Failure(code = null, errorMessage = "Missing webhook URL")
         }
 
@@ -142,13 +144,13 @@ class WebhookDispatcher(
             }
 
             val jsonString = jsonObject.toString()
-            Log.d(TAG, "Sending PING to ${config.webhookUrl}: $jsonString")
+            Log.d(TAG, "Sending PING to $targetUrl: $jsonString")
 
             val mediaType = "application/json; charset=utf-8".toMediaType()
             val requestBody = jsonString.toRequestBody(mediaType)
 
             val request = Request.Builder()
-                .url(config.webhookUrl)
+                .url(targetUrl)
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Authorization", "Bearer $effectiveToken")
                 .post(requestBody)

@@ -386,4 +386,206 @@ class ExampleUnitTest {
     assertEquals("dev_ec7afd5636d8a76c", config5.deviceId)
     assertEquals("sec_live_mock_token_123", config5.deviceToken)
   }
+
+  @Test
+  fun testAll14ProviderRules() {
+    // 1. Trust Bank (ATM / Card)
+    val trustAtm = "ATM CASH Txn \n TK 5945.00 CREDIT \n AC No 046***328"
+    val eval1 = com.example.util.SmsFilterAndParser.evaluateSms("Trust Bank", trustAtm)
+    assertTrue("Trust Bank ATM must be allowed", eval1 is com.example.util.FilterEvaluation.Allowed)
+    val d1 = (eval1 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Trust Bank", d1.gateway)
+    assertEquals(5945.0, d1.amount, 0.001)
+    assertEquals("046***328", d1.senderNumber)
+    assertTrue("TrxID must be deterministic ref starting with REF-", d1.trxId.startsWith("REF-"))
+
+    // 2. Trust Bank (Account/Card Received)
+    val trustCard = "Tk1,400.01 received from Ac./Card:017****0251 Fee: Tk.00... TxnId: 6914682052"
+    val eval2 = com.example.util.SmsFilterAndParser.evaluateSms("Trust Bank", trustCard)
+    assertTrue("Trust Bank card received must be allowed", eval2 is com.example.util.FilterEvaluation.Allowed)
+    val d2 = (eval2 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Trust Bank", d2.gateway)
+    assertEquals(1400.01, d2.amount, 0.001)
+    assertEquals("017****0251", d2.senderNumber)
+    assertEquals("6914682052", d2.trxId)
+
+    // 3. Nagad Bangla QR
+    val nagadBQr = "Payment - Bangla QR Successfully Received. \n Amount: Tk 1.00 \n Txn ID: 0001U735"
+    val eval3 = com.example.util.SmsFilterAndParser.evaluateSms("Nagad", nagadBQr)
+    assertTrue("Nagad Bangla QR must be allowed", eval3 is com.example.util.FilterEvaluation.Allowed)
+    val d3 = (eval3 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Nagad", d3.gateway)
+    assertEquals(1.0, d3.amount, 0.001)
+    assertEquals("0001U735", d3.trxId)
+
+    // 4. Nagad Personal Received
+    val nagadPersonal = "Payment Received. \n Amount: Tk 1.00 \n Customer: 01797924838 \n TxnID: 75L7Z1Q1"
+    val eval4 = com.example.util.SmsFilterAndParser.evaluateSms("Nagad", nagadPersonal)
+    assertTrue("Nagad personal received must be allowed", eval4 is com.example.util.FilterEvaluation.Allowed)
+    val d4 = (eval4 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Nagad", d4.gateway)
+    assertEquals(1.0, d4.amount, 0.001)
+    assertEquals("01797924838", d4.senderNumber)
+    assertEquals("75L7Z1Q1", d4.trxId)
+
+    // 5. Nagad Add Money from Bank
+    val nagadAddMoney = "Add Money from Bank is Successful. \n From: IBBL \n Amount: Tk 2520.0 \n TxnID: 760VVGGW"
+    val eval5 = com.example.util.SmsFilterAndParser.evaluateSms("Nagad", nagadAddMoney)
+    assertTrue("Nagad Add Money from Bank must be allowed", eval5 is com.example.util.FilterEvaluation.Allowed)
+    val d5 = (eval5 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Nagad", d5.gateway)
+    assertEquals(2520.0, d5.amount, 0.001)
+    assertEquals("IBBL", d5.senderNumber)
+    assertEquals("760VVGGW", d5.trxId)
+
+    // 6. Upay Bangla QR
+    val upayBQr = "Received Payment of Tk.1.00 from 01797924838... TrxID 01M3V635E3"
+    val eval6 = com.example.util.SmsFilterAndParser.evaluateSms("Upay", upayBQr)
+    assertTrue("Upay Bangla QR must be allowed", eval6 is com.example.util.FilterEvaluation.Allowed)
+    val d6 = (eval6 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Upay", d6.gateway)
+    assertEquals(1.0, d6.amount, 0.001)
+    assertEquals("01797924838", d6.senderNumber)
+    assertEquals("01M3V635E3", d6.trxId)
+
+    // 7. Upay Personal Received
+    val upayPersonal = "Tk. 254.90 has been received from 01300366626... TrxID 01JP2W61EN"
+    val eval7 = com.example.util.SmsFilterAndParser.evaluateSms("Upay", upayPersonal)
+    assertTrue("Upay Personal Received must be allowed", eval7 is com.example.util.FilterEvaluation.Allowed)
+    val d7 = (eval7 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Upay", d7.gateway)
+    assertEquals(254.90, d7.amount, 0.001)
+    assertEquals("01300366626", d7.senderNumber)
+    assertEquals("01JP2W61EN", d7.trxId)
+
+    // 8. BRAC Bank Limited
+    val bracReceived = "Tk.150.00 has been received from BRAC Bank Limited... TrxID 01K6MZYRK4"
+    val eval8 = com.example.util.SmsFilterAndParser.evaluateSms("BRAC Bank", bracReceived)
+    assertTrue("BRAC Bank Limited receipt must be allowed", eval8 is com.example.util.FilterEvaluation.Allowed)
+    val d8 = (eval8 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("BRAC Bank", d8.gateway)
+    assertEquals(150.0, d8.amount, 0.001)
+    assertEquals("BRAC Bank Limited", d8.senderNumber)
+    assertEquals("01K6MZYRK4", d8.trxId)
+
+    // 9. Tally Pay QR
+    val tallyQr = "Tk 1,898.57 received from 017***4838 via TallyPay QR... Txn ID: YY1Z85HTP"
+    val eval9 = com.example.util.SmsFilterAndParser.evaluateSms("TallyPay", tallyQr)
+    assertTrue("Tally Pay QR must be allowed", eval9 is com.example.util.FilterEvaluation.Allowed)
+    val d9 = (eval9 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("TallyPay", d9.gateway)
+    assertEquals(1898.57, d9.amount, 0.001)
+    assertEquals("017***4838", d9.senderNumber)
+    assertEquals("YY1Z85HTP", d9.trxId)
+
+    // 10. Islami Bank (IBBL - ATM / General Credit)
+    val ibblAtm = "Dear Customer ATM Tk 3647 has been credited to A/C777**05092965"
+    val eval10 = com.example.util.SmsFilterAndParser.evaluateSms("IBBL", ibblAtm)
+    assertTrue("IBBL ATM must be allowed", eval10 is com.example.util.FilterEvaluation.Allowed)
+    val d10 = (eval10 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("IBBL", d10.gateway)
+    assertEquals(3647.0, d10.amount, 0.001)
+    assertEquals("777**05092965", d10.senderNumber)
+    assertTrue("IBBL ATM Trx must start with REF-", d10.trxId.startsWith("REF-"))
+
+    // 11. BRAC Bank Direct Credit
+    val bracCredit = "TK 2,020.00 has been credited to your A/C# 10609**0001 on 22-08-26."
+    val eval11 = com.example.util.SmsFilterAndParser.evaluateSms("BRAC Bank", bracCredit)
+    assertTrue("BRAC Bank Direct Credit must be allowed", eval11 is com.example.util.FilterEvaluation.Allowed)
+    val d11 = (eval11 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("BRAC Bank", d11.gateway)
+    assertEquals(2020.0, d11.amount, 0.001)
+    assertEquals("10609**0001", d11.senderNumber)
+    assertTrue("BRAC Direct Credit Trx must start with REF-", d11.trxId.startsWith("REF-"))
+
+    // 12. Midland Bank
+    val midlandDeposit = "BDT 3999.99 was deposited to A/c No ***03118 by ATM transaction"
+    val eval12 = com.example.util.SmsFilterAndParser.evaluateSms("Midland Bank", midlandDeposit)
+    assertTrue("Midland Bank deposit must be allowed", eval12 is com.example.util.FilterEvaluation.Allowed)
+    val d12 = (eval12 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Midland Bank", d12.gateway)
+    assertEquals(3999.99, d12.amount, 0.001)
+    assertEquals("***03118", d12.senderNumber)
+    assertTrue("Midland Bank Trx must start with REF-", d12.trxId.startsWith("REF-"))
+
+    // 13. Islami Bank (IBBL Deposit Slip)
+    val ibblDeposit = "TrxID: 58260928000006866 \n Acc: 20507776705092965 \n Deposit Amount: 9,000.00"
+    val eval13 = com.example.util.SmsFilterAndParser.evaluateSms("IBBL", ibblDeposit)
+    assertTrue("IBBL Deposit Slip must be allowed", eval13 is com.example.util.FilterEvaluation.Allowed)
+    val d13 = (eval13 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("IBBL", d13.gateway)
+    assertEquals(9000.0, d13.amount, 0.001)
+    assertEquals("58260928000006866", d13.trxId)
+    assertEquals("20507776705092965", d13.senderNumber)
+
+    // 14. Sonali Bank NPSB
+    val sonaliNpsb = "Your account 5912*****1613 has been credited through NPSB for BDT 9,900.00"
+    val eval14 = com.example.util.SmsFilterAndParser.evaluateSms("Sonali Bank", sonaliNpsb)
+    assertTrue("Sonali Bank NPSB must be allowed", eval14 is com.example.util.FilterEvaluation.Allowed)
+    val d14 = (eval14 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("Sonali Bank", d14.gateway)
+    assertEquals(9900.0, d14.amount, 0.001)
+    assertEquals("5912*****1613", d14.senderNumber)
+    assertTrue("Sonali Bank Trx must start with REF-", d14.trxId.startsWith("REF-"))
+  }
+
+  @Test
+  fun testDeterministicReferenceGeneration() {
+    val ref1 = com.example.util.SmsParsingConfig.generateDeterministicReference("Sonali Bank", 500.0, "1234", "Body text")
+    val ref2 = com.example.util.SmsParsingConfig.generateDeterministicReference("Sonali Bank", 500.0, "1234", "Body text")
+    assertEquals(ref1, ref2)
+    assertTrue(ref1.startsWith("REF-"))
+    assertEquals(16, ref1.length) // "REF-" (4) + 12 hex chars = 16
+
+    val ref3 = com.example.util.SmsParsingConfig.generateDeterministicReference("Sonali Bank", 600.0, "1234", "Body text")
+    org.junit.Assert.assertNotEquals(ref1, ref3)
+  }
+
+  @Test
+  fun testUniversalFallbackParser() {
+    // 1. Unlisted Bank SMS with explicit TrxID
+    val unlistedBankSms = "Dear Customer, your A/C 9876**5432 has been credited with BDT 15,000.00 on 01-Oct-2026. Ref: TR77665544"
+    val eval1 = com.example.util.SmsFilterAndParser.evaluateSms("GlobalIslamicBank", unlistedBankSms)
+    assertTrue("Universal fallback should parse unlisted bank SMS", eval1 is com.example.util.FilterEvaluation.Allowed)
+    val d1 = (eval1 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("GlobalIslamicBank", d1.gateway)
+    assertEquals(15000.0, d1.amount, 0.001)
+    assertEquals("TR77665544", d1.trxId)
+    assertEquals("9876**5432", d1.senderNumber)
+
+    // 2. Unlisted MFS without direct TrxID (should generate deterministic reference)
+    val unlistedMfsSms = "Received payment BDT 750.50 from 01799887766 for merchant checkout."
+    val eval2 = com.example.util.SmsFilterAndParser.evaluateSms("FastPay", unlistedMfsSms)
+    assertTrue("Universal fallback should parse unlisted MFS SMS", eval2 is com.example.util.FilterEvaluation.Allowed)
+    val d2 = (eval2 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals("FastPay", d2.gateway)
+    assertEquals(750.50, d2.amount, 0.001)
+    assertEquals("01799887766", d2.senderNumber)
+    assertTrue(d2.trxId.startsWith("REF-"))
+
+    // 3. Fallback on Bengali Taka symbol
+    val bengaliCurrencySms = "Account 12345 credited with ৳ 3,200.00 successfully."
+    val eval3 = com.example.util.SmsFilterAndParser.evaluateSms("CommunityBank", bengaliCurrencySms)
+    assertTrue("Universal fallback should parse Bengali Taka symbol", eval3 is com.example.util.FilterEvaluation.Allowed)
+    val d3 = (eval3 as com.example.util.FilterEvaluation.Allowed).data
+    assertEquals(3200.0, d3.amount, 0.001)
+    assertEquals("12345", d3.senderNumber)
+  }
+
+  @Test
+  fun testProductionWebhookUrlDefault() {
+    val blankConfig = com.example.data.model.ConfigData(
+        webhookUrl = "",
+        deviceToken = "test_token_123",
+        deviceId = "dev_01"
+    )
+    assertEquals("https://www.zero-pay.tech/api/v1/webhook", blankConfig.effectiveWebhookUrl)
+    assertTrue(blankConfig.isConfigured)
+
+    val customConfig = com.example.data.model.ConfigData(
+        webhookUrl = "https://custom.site/api/webhook",
+        deviceToken = "test_token_123"
+    )
+    assertEquals("https://custom.site/api/webhook", customConfig.effectiveWebhookUrl)
+  }
 }

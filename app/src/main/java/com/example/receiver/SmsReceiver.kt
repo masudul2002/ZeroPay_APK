@@ -54,9 +54,13 @@ class SmsReceiver : BroadcastReceiver() {
 
         val repository = SmsRepository.getInstance(context)
 
-        // Step A: Check if Sender is whitelisted. If not -> drop completely.
-        if (!repository.isSenderAllowed(sender)) {
-            Log.d(TAG, "Step A: Sender '$sender' is not whitelisted in filter list. Dropping completely.")
+        // Step A: Strict Transaction Evaluation & Gateway Parsing
+        val customRules = repository.getCustomFilterRules()
+        val evaluation = SmsFilterAndParser.evaluateSms(sender, fullBody, customRules)
+
+        // If the SMS is not a verified transaction and sender is not whitelisted, drop completely
+        if (evaluation is FilterEvaluation.Ignored && !repository.isSenderAllowed(sender)) {
+            Log.d(TAG, "SMS from unlisted sender '$sender' is not a payment transaction (${evaluation.reason}). Dropping completely.")
             return
         }
 
@@ -68,10 +72,6 @@ class SmsReceiver : BroadcastReceiver() {
                 Toast.LENGTH_SHORT
             ).show()
         }
-
-        // Step B: Strict Transaction Evaluation & Gateway Parsing
-        val customRules = repository.getCustomFilterRules()
-        val evaluation = SmsFilterAndParser.evaluateSms(sender, fullBody, customRules)
 
         val pendingResult = goAsync()
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager

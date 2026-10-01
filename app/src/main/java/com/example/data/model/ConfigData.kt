@@ -11,10 +11,17 @@ data class ConfigData(
     val effectiveDeviceId: String
         get() = deviceId.trim().ifBlank { "sim-gateway-01" }
 
-    // Bypass false "Not Paired" blocking: as long as a valid webhookUrl and deviceToken exist,
+    val effectiveWebhookUrl: String
+        get() = webhookUrl.trim().ifBlank { DEFAULT_PRODUCTION_WEBHOOK_URL }
+
+    // Bypass false "Not Paired" blocking: as long as a valid webhookUrl (or default) and deviceToken exist,
     // the app is considered configured and ready to forward payment SMS.
     val isConfigured: Boolean
-        get() = webhookUrl.isNotBlank() && deviceToken.isNotBlank()
+        get() = effectiveWebhookUrl.isNotBlank() && deviceToken.isNotBlank()
+
+    companion object {
+        const val DEFAULT_PRODUCTION_WEBHOOK_URL = "https://www.zero-pay.tech/api/v1/webhook"
+    }
 }
 
 data class WebhookPayload(

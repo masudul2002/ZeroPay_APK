@@ -93,6 +93,14 @@ object PredefinedSenders {
             defaultEnabled = false
         ),
         SenderFilter(
+            id = "TallyPay",
+            name = "TallyPay",
+            category = CATEGORY_GATEWAYS,
+            matchSenders = listOf("TallyPay", "TALLYPAY", "Tally Pay"),
+            description = "TallyPay QR digital payments",
+            defaultEnabled = false
+        ),
+        SenderFilter(
             id = "DGePAY",
             name = "DGePAY",
             category = CATEGORY_GATEWAYS,
@@ -228,6 +236,14 @@ object PredefinedSenders {
             category = CATEGORY_BANKS,
             matchSenders = listOf("NRB Bank", "NRBBank", "NRBBANK"),
             description = "NRB Bank Limited alerts",
+            defaultEnabled = false
+        ),
+        SenderFilter(
+            id = "Sonali Bank",
+            name = "Sonali Bank",
+            category = CATEGORY_BANKS,
+            matchSenders = listOf("Sonali Bank", "SonaliBank", "SONALIBANK", "Sonali"),
+            description = "Sonali Bank Limited & NPSB alerts",
             defaultEnabled = false
         )
     )

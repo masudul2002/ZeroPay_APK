@@ -33,8 +33,8 @@ sealed class FilterEvaluation {
  * Intelligent SMS Filter and Multi-Gateway Parser.
  *
  * Implements strict blacklist detection (dropping OTPs, security PINs, promotional spam,
- * debit alerts, ATM withdrawals, and non-transaction balance notices) and whitelist validation
- * (capturing only verified incoming financial receipts).
+ * debit alerts, ATM withdrawals, and non-transaction balance notices), 14 Bank/MFS provider rules,
+ * custom dynamic rules, and a Universal Fallback SMS Parser for unexpected or unlisted SMS receipts.
  */
 object SmsFilterAndParser {
 
@@ -61,12 +61,37 @@ object SmsFilterAndParser {
 
     // Generic transaction ID matcher
     private val TRX_ID_REGEX = Regex(
-        """(?i)\b(?:TrxID|TxnId|Txn\s*ID|Trx\s*ID|Transaction\s*ID|Trx|Txn|Ref|Ref\s*No|Reference)[:#\s.\-]*([A-Za-z0-9_\-]{6,30})\b"""
+        """(?i)\b(?:TrxID|TxnId|Txn\s*ID|Trx\s*ID|Transaction\s*ID|Trx|Txn|Ref|Ref\s*No|Reference)[:#\s.\-]*([A-Za-z0-9_\-]{6,35})\b"""
     )
 
     // Generic amount matcher
     private val AMOUNT_REGEX = Regex(
-        """(?i)(?:Tk\.?|BDT|Tk)\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)"""
+        """(?i)(?:Tk\.?|BDT|Tk|৳)\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)"""
+    )
+
+    // Flexible amount matcher (handles currency symbol before or after numbers)
+    private val AMOUNT_FLEXIBLE_REGEX = Regex(
+        """(?i)(?:TK\.?|Tk|BDT|৳)\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)|([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:TK\.?|Tk|BDT|৳)"""
+    )
+
+    // Universal incoming transaction indicators
+    private val UNIVERSAL_INCOMING_REGEX = Regex(
+        """(?i)\b(received|credited|deposit|deposited|cash\s*in|add\s*money|money\s*received|payment\s*received|transferred\s*from|credit\s*alert|credit\s*txn|credited\s*to|credited\s*with|credited\s*by|credited\s*through)\b"""
+    )
+
+    // Phone number pattern (013-019 Bangladesh mobile or masked phone)
+    private val PHONE_NUMBER_REGEX = Regex(
+        """\b(01[3-9][0-9*]{8,9})\b"""
+    )
+
+    // Account snippet pattern
+    private val ACCOUNT_SNIPPET_REGEX = Regex(
+        """(?i)\b(?:A/C#?|Ac\.|Account|Acc|AC No)[:#\s]*([A-Za-z0-9*]{4,25})"""
+    )
+
+    // Party pattern
+    private val PARTY_FROM_REGEX = Regex(
+        """(?i)\b(?:from|sender|customer|by)[:\s]+([+0-9A-Za-z*.\-\s]{3,30}?)(?=\s+(?:Fee|Bal|Balance|Trx|Txn|at|on|\.|$))"""
     )
 
     /**
@@ -94,7 +119,11 @@ object SmsFilterAndParser {
         }
 
         // 2. Strict Blacklist: Outgoing debit alerts & statements
-        if (DEBIT_AND_STATEMENT_REGEX.containsMatchIn(normalizedBody)) {
+        // Exception: Explicit credit/deposit notices (e.g. ATM CASH Txn CREDIT or deposited by ATM)
+        val isExplicitCreditAlert = normalizedBody.contains("CREDIT", ignoreCase = true) ||
+                normalizedBody.contains("deposited", ignoreCase = true) ||
+                normalizedBody.contains("credited", ignoreCase = true)
+        if (DEBIT_AND_STATEMENT_REGEX.containsMatchIn(normalizedBody) && !isExplicitCreditAlert) {
             safeLogD(TAG, "Dropped debit/statement notification from $normalizedSender")
             return FilterEvaluation.Ignored("Dropped: Outgoing debit or statement notice")
         }
@@ -141,35 +170,68 @@ object SmsFilterAndParser {
             }
         }
 
-        // 5. Built-in Multi-Gateway Parsers
+        // 5. Exact 14 Bank & MFS Provider Rules
+        // If a known sender is provided, prioritize rules matching that provider
+        val prioritizedRules = if (normalizedSender.isNotBlank()) {
+            val (preferred, remaining) = SmsParsingConfig.SUPPORTED_PROVIDER_RULES.partition { rule ->
+                normalizedSender.contains(rule.providerName, ignoreCase = true) ||
+                rule.providerName.contains(normalizedSender, ignoreCase = true) ||
+                (normalizedSender.contains("trust", ignoreCase = true) && rule.providerName.contains("trust", ignoreCase = true)) ||
+                (normalizedSender.contains("nagad", ignoreCase = true) && rule.providerName.contains("nagad", ignoreCase = true)) ||
+                (normalizedSender.contains("upay", ignoreCase = true) && rule.providerName.contains("upay", ignoreCase = true)) ||
+                (normalizedSender.contains("brac", ignoreCase = true) && rule.providerName.contains("brac", ignoreCase = true)) ||
+                (normalizedSender.contains("ibbl", ignoreCase = true) && rule.providerName.contains("ibbl", ignoreCase = true)) ||
+                (normalizedSender.contains("midland", ignoreCase = true) && rule.providerName.contains("midland", ignoreCase = true)) ||
+                (normalizedSender.contains("sonali", ignoreCase = true) && rule.providerName.contains("sonali", ignoreCase = true)) ||
+                (normalizedSender.contains("tally", ignoreCase = true) && rule.providerName.contains("tally", ignoreCase = true))
+            }
+            preferred + remaining
+        } else {
+            SmsParsingConfig.SUPPORTED_PROVIDER_RULES
+        }
+
+        for (providerRule in prioritizedRules) {
+            val extracted = SmsParsingConfig.matchAndExtract(
+                rule = providerRule,
+                normalizedBody = normalizedBody,
+                timestamp = nowIso,
+                rawText = trimmedBody,
+                sender = normalizedSender
+            )
+            if (extracted != null) {
+                return FilterEvaluation.Allowed(extracted)
+            }
+        }
+
+        // 6. Built-in Multi-Gateway Parsers
         val senderLower = normalizedSender.lowercase()
 
         // --- bKash ---
-        if (senderLower.contains("bkash") || senderLower.contains("16247")) {
+        if (senderLower.contains("bkash") || senderLower.contains("16247") || normalizedBody.contains("bKash", ignoreCase = true)) {
             val bkashResult = parseBkash(normalizedBody, nowIso, trimmedBody)
             if (bkashResult != null) return FilterEvaluation.Allowed(bkashResult)
         }
 
         // --- Nagad ---
-        if (senderLower.contains("nagad") || senderLower.contains("16167")) {
+        if (senderLower.contains("nagad") || senderLower.contains("16167") || normalizedBody.contains("Nagad", ignoreCase = true)) {
             val nagadResult = parseNagad(normalizedBody, nowIso, trimmedBody)
             if (nagadResult != null) return FilterEvaluation.Allowed(nagadResult)
         }
 
         // --- Rocket ---
-        if (senderLower.contains("16216") || senderLower.contains("rocket")) {
+        if (senderLower.contains("16216") || senderLower.contains("rocket") || normalizedBody.contains("Rocket", ignoreCase = true)) {
             val rocketResult = parseRocket(normalizedBody, nowIso, trimmedBody)
             if (rocketResult != null) return FilterEvaluation.Allowed(rocketResult)
         }
 
         // --- CellFin ---
-        if (senderLower.contains("cellfin") || senderLower.contains("16259")) {
+        if (senderLower.contains("cellfin") || senderLower.contains("16259") || normalizedBody.contains("CellFin", ignoreCase = true)) {
             val cellfinResult = parseCellfin(normalizedBody, nowIso, trimmedBody)
             if (cellfinResult != null) return FilterEvaluation.Allowed(cellfinResult)
         }
 
         // --- Upay ---
-        if (senderLower.contains("upay") || senderLower.contains("16268")) {
+        if (senderLower.contains("upay") || senderLower.contains("16268") || normalizedBody.contains("Upay", ignoreCase = true)) {
             val upayResult = parseUpay(normalizedBody, nowIso, trimmedBody)
             if (upayResult != null) return FilterEvaluation.Allowed(upayResult)
         }
@@ -180,7 +242,14 @@ object SmsFilterAndParser {
             return FilterEvaluation.Allowed(bankResult)
         }
 
-        // --- Generic Fallback for whitelisted incoming financial transactions ---
+        // 7. Universal Fallback SMS Parser
+        // Dynamically parses unlisted or unexpected SMS messages
+        val fallbackResult = parseUniversalFallback(normalizedSender, normalizedBody, nowIso, trimmedBody)
+        if (fallbackResult != null) {
+            return FilterEvaluation.Allowed(fallbackResult)
+        }
+
+        // 8. Generic Fallback for whitelisted incoming financial transactions
         val genericResult = parseGenericReceipt(normalizedSender, normalizedBody, nowIso, trimmedBody)
         if (genericResult != null) {
             return FilterEvaluation.Allowed(genericResult)
@@ -395,23 +464,13 @@ object SmsFilterAndParser {
         if (amount <= 0) return null
 
         val senderMatch = Regex("""(?i)(?:from|by)\s+([+0-9A-Za-z\-/]{6,20})""").find(body)
-        val senderNum = senderMatch?.groupValues?.get(1)
+        val accountMatch = ACCOUNT_SNIPPET_REGEX.find(body)
+        val senderNum = senderMatch?.groupValues?.get(1) ?: accountMatch?.groupValues?.get(1)
 
         val balanceMatch = Regex("""(?i)(?:Avail\s*Bal|Available\s*Balance|Balance)[:\s]+(?:Tk\.?|BDT)?\s*([0-9,]+(?:\.[0-9]{1,2})?)""").find(body)
         val balance = balanceMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
 
-        val normalizedSenderName = when {
-            sender.contains("BRAC", ignoreCase = true) -> "BRACBANK"
-            sender.contains("IBBL", ignoreCase = true) || sender.contains("Islami", ignoreCase = true) -> "IBBL"
-            sender.contains("Midland", ignoreCase = true) || sender.contains("MDB", ignoreCase = true) -> "MidlandBank"
-            sender.contains("Trust", ignoreCase = true) -> "Trust Bank"
-            sender.contains("City", ignoreCase = true) -> "CITY BANK"
-            sender.contains("DBBL", ignoreCase = true) || sender.contains("Dutch", ignoreCase = true) -> "DBBL"
-            sender.contains("EBL", ignoreCase = true) || sender.contains("Eastern", ignoreCase = true) -> "EBL"
-            sender.contains("Asia", ignoreCase = true) -> "BANK ASIA"
-            sender.contains("ABB", ignoreCase = true) || sender.contains("AB Bank", ignoreCase = true) -> "AB BANK"
-            else -> sender.ifBlank { "Bank Transfer" }
-        }
+        val normalizedSenderName = resolveGatewayName(sender, defaultGateway = "Bank Transfer")
 
         return ExtractedTransactionData(
             gateway = normalizedSenderName,
@@ -421,6 +480,65 @@ object SmsFilterAndParser {
             timestamp = timestamp,
             balance = balance,
             rawText = raw
+        )
+    }
+
+    /**
+     * Universal Fallback SMS Parser.
+     * Executes dynamically if all specific provider matches fail.
+     * Extracts Amount, Sender/Account/Phone, and TrxID (or generates a secure deterministic reference).
+     */
+    fun parseUniversalFallback(
+        sender: String,
+        normalizedBody: String,
+        timestamp: String,
+        rawText: String
+    ): ExtractedTransactionData? {
+        val hasIncoming = UNIVERSAL_INCOMING_REGEX.containsMatchIn(normalizedBody)
+        if (!hasIncoming) {
+            return null
+        }
+
+        // 1. Amount Extraction
+        val amtMatch = AMOUNT_FLEXIBLE_REGEX.find(normalizedBody) ?: return null
+        val rawAmtStr = (amtMatch.groups[1]?.value ?: amtMatch.groups[2]?.value)?.replace(",", "")?.trim()
+        val amount = rawAmtStr?.toDoubleOrNull() ?: return null
+        if (amount <= 0.0) return null
+
+        // 2. TrxID Extraction
+        val trxMatch = TRX_ID_REGEX.find(normalizedBody)
+        val rawTrxId = trxMatch?.groups?.get(1)?.value?.trim()
+
+        // 3. Sender / Phone / Account / Source Extraction
+        val phoneMatch = PHONE_NUMBER_REGEX.find(normalizedBody)
+        val accountMatch = ACCOUNT_SNIPPET_REGEX.find(normalizedBody)
+        val partyMatch = PARTY_FROM_REGEX.find(normalizedBody)
+
+        val senderNumber = phoneMatch?.groups?.get(1)?.value?.trim()
+            ?: accountMatch?.groups?.get(1)?.value?.trim()
+            ?: partyMatch?.groups?.get(1)?.value?.trim()
+            ?: sender.trim().ifBlank { null }
+
+        val gateway = resolveGatewayName(sender, defaultGateway = "Universal Gateway")
+
+        val finalTrxId = if (!rawTrxId.isNullOrBlank()) {
+            rawTrxId.uppercase()
+        } else {
+            SmsParsingConfig.generateDeterministicReference(
+                provider = gateway,
+                amount = amount,
+                identifier = senderNumber,
+                rawBody = normalizedBody
+            )
+        }
+
+        return ExtractedTransactionData(
+            gateway = gateway,
+            amount = amount,
+            senderNumber = senderNumber,
+            trxId = finalTrxId,
+            timestamp = timestamp,
+            rawText = rawText
         )
     }
 
@@ -447,7 +565,7 @@ object SmsFilterAndParser {
         val senderMatch = Regex("""(?i)from\s+([+0-9A-Za-z\-]{8,20})""").find(body)
 
         return ExtractedTransactionData(
-            gateway = sender.ifBlank { "Unknown Gateway" },
+            gateway = resolveGatewayName(sender, defaultGateway = "Unknown Gateway"),
             amount = amount,
             senderNumber = senderMatch?.groupValues?.get(1),
             trxId = trxId,
@@ -459,6 +577,36 @@ object SmsFilterAndParser {
     // ---------------------------------------------------------------------------------------------
     // HELPERS
     // ---------------------------------------------------------------------------------------------
+
+    fun resolveGatewayName(sender: String, defaultGateway: String = ""): String {
+        val s = sender.trim()
+        val sLower = s.lowercase()
+        return when {
+            sLower.contains("bkash") || sLower.contains("16247") -> "bKash"
+            sLower.contains("nagad") || sLower.contains("16167") -> "Nagad"
+            sLower.contains("rocket") || sLower.contains("16216") -> "Rocket"
+            sLower.contains("cellfin") || sLower.contains("16259") -> "Cellfin"
+            sLower.contains("upay") || sLower.contains("16268") -> "Upay"
+            sLower.contains("tally") -> "TallyPay"
+            sLower.contains("brac") -> "BRACBANK"
+            sLower.contains("ibbl") || sLower.contains("islami bank") || sLower == "islamibank" -> "IBBL"
+            sLower.contains("trust") -> "Trust Bank"
+            sLower.contains("midland") || sLower.contains("mdb") -> "MidlandBank"
+            sLower.contains("sonali") -> "Sonali Bank"
+            sLower.contains("city") -> "CITY BANK"
+            sLower.contains("dbbl") || sLower.contains("dutch") -> "DBBL"
+            sLower.contains("ebl") || sLower.contains("eastern") -> "EBL"
+            sLower.contains("asia") -> "BANK ASIA"
+            sLower.contains("abb") || sLower.contains("ab bank") -> "AB BANK"
+            sLower.contains("mtb") -> "MTB"
+            sLower.contains("prime") -> "Prime Bank"
+            sLower.contains("dhaka") -> "Dhaka Bank"
+            sLower.contains("nrb") -> "NRB Bank"
+            s.isNotBlank() -> s
+            defaultGateway.isNotBlank() -> defaultGateway
+            else -> "Bank Transfer"
+        }
+    }
 
     private fun matchesCustomSender(sender: String, patternStr: String): Boolean {
         if (patternStr.isBlank()) return true
