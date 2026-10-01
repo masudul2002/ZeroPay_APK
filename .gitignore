@@ -18,6 +18,8 @@ build/
 local.properties
 .env
 debug.keystore
+*.jks
+*.keystore
 
 # Gradle wrapper explicitly included
 !gradle/wrapper/gradle-wrapper.jar

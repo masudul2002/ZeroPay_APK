@@ -24,14 +24,37 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      val releaseKeystore = file(keystorePath)
+      val propStoreFile = (project.findProperty("RELEASE_STORE_FILE") as? String)
+        ?: System.getenv("RELEASE_STORE_FILE")
+        ?: System.getenv("KEYSTORE_PATH")
+        ?: "keystore.jks"
+      val propStorePassword = (project.findProperty("RELEASE_STORE_PASSWORD") as? String)
+        ?: System.getenv("RELEASE_STORE_PASSWORD")
+        ?: System.getenv("STORE_PASSWORD")
+      val propKeyAlias = (project.findProperty("RELEASE_KEY_ALIAS") as? String)
+        ?: System.getenv("RELEASE_KEY_ALIAS")
+        ?: System.getenv("KEY_ALIAS")
+        ?: "zeropay"
+      val propKeyPassword = (project.findProperty("RELEASE_KEY_PASSWORD") as? String)
+        ?: System.getenv("RELEASE_KEY_PASSWORD")
+        ?: System.getenv("KEY_PASSWORD")
+        ?: propStorePassword
+
+      val releaseKeystore = if (File(propStoreFile).isAbsolute) file(propStoreFile) else file("${rootDir}/$propStoreFile")
       val debugKeystore = file("${rootDir}/debug.keystore")
-      val hasReleaseKeystore = releaseKeystore.exists() && System.getenv("STORE_PASSWORD") != null
-      storeFile = if (hasReleaseKeystore) releaseKeystore else debugKeystore
-      storePassword = if (hasReleaseKeystore) System.getenv("STORE_PASSWORD") else "android"
-      keyAlias = if (hasReleaseKeystore) (System.getenv("KEY_ALIAS") ?: "upload") else "androiddebugkey"
-      keyPassword = if (hasReleaseKeystore) System.getenv("KEY_PASSWORD") else "android"
+      val hasReleaseKeystore = releaseKeystore.exists() && !propStorePassword.isNullOrBlank()
+
+      if (hasReleaseKeystore) {
+        storeFile = releaseKeystore
+        storePassword = propStorePassword
+        keyAlias = propKeyAlias
+        keyPassword = propKeyPassword
+      } else {
+        storeFile = debugKeystore
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
     create("debugConfig") {
       val rootKeystore = file("${rootDir}/debug.keystore")
@@ -43,10 +66,14 @@ android {
     }
   }
 
+  val enableProguard = (project.findProperty("enableProguardInReleaseBuilds") as? String)?.toBoolean()
+    ?: true
+
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = enableProguard
+      isShrinkResources = enableProguard
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
